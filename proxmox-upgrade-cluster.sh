@@ -8,6 +8,7 @@ program_name="$(basename "$0")"
 ssh_user="${PVE_UPGRADE_SSH_USER:-root}"
 ssh_key_auth_only=true
 use_cluster_node=false
+cluster_node_use_ip=false
 force_upgrade=false
 force_reboot=false
 pkgs_reinstall=("proxmox-truenas")
@@ -160,7 +161,11 @@ get_cluster_nodes() {
   # Get list of all custer nodes from a node
   local node=$1
   local -a nodes
-  node_pvesh "$node" "cluster/status" | jq -rc '[.[] | select(.type == "node") | .ip] | join(" ")'
+  if [[ "$cluster_node_use_ip" == true ]]; then
+    node_pvesh "$node" "cluster/status" | jq -rc '[.[] | select(.type == "node") | .ip] | join(" ")'
+  else
+    node_pvesh "$node" "cluster/status" | jq -rc '[.[] | select(.type == "node") | .name] | join(" ")'
+  fi
 }
 
 node_has_updates() {
@@ -446,6 +451,9 @@ OPTIONS
         this to allow ssh passworf auth. This is strongly recommended against.
         You may have to enter your password hundereds of times.
 
+    --cluster-node-use-ip
+        When using '--cluster-node', use the IP address instead of the node name.
+
     --testing
         Flag to enable a testing mode where no actions are taken.
 
@@ -503,6 +511,9 @@ while true; do
       ;;
     --ssh-allow-password-auth)
       ssh_key_auth_only=false
+      ;;
+    --cluster-node-use-ip)
+      cluster_node_use_ip=true
       ;;
     --testing)
       testing=true
