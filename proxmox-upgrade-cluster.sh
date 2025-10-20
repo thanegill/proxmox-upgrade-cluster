@@ -101,7 +101,7 @@ log_progress() {
 
 local_ssh() {
   # shellcheck disable=2068
-  command ssh ${@}
+  command ssh $@
 }
 
 node_ssh() {
@@ -110,18 +110,18 @@ node_ssh() {
   log_debug "[$host] Running command '$cmd'"
 
   # shellcheck disable=SC2048,2086 # Need to expand ssh_options with all whitespace.
-  local_ssh "$host" ${ssh_options[*]} $* $cmd
+  local_ssh "$host" ${ssh_options[*]} $* "$cmd"
 }
 
 node_ssh_no_op() {
-  local node=$1
-  local cmd=$2
+  local node=$1; shift
+  local cmd=$1; shift
   if [[ "$testing" = true ]]; then
     log_warning "[$node][NO-OP] Not running '$cmd'"
     return 0
   fi
   # shellcheck disable=SC2048,2086 # Need to expand ssh_options with all whitespace.
-  node_ssh "$node" cmd $*
+  node_ssh "$node" "$cmd" "$@"
 }
 
 node_pvesh() {
