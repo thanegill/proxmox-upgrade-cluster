@@ -142,14 +142,17 @@ is_node_up() {
 
 all_nodes_up() {
   local -n nodes=$1
+  local all_up=true
   for node in "${nodes[@]}"; do
     if is_node_up "$node"; then
       log_verbose "[$node] Is up."
     else
       log_alert "[$node] Is down."
-      return 1
+      all_up=false
     fi
   done
+
+  if [[ "$all_up" == false ]]; then return 1; fi
 }
 
 get_cluster_nodes() {
