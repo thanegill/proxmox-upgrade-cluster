@@ -109,7 +109,6 @@ node_ssh() {
   local cmd=$1; shift
   log_debug "[$host] Running command '$cmd'"
 
-  test $verbose -ge 4 && ssh_options+=("-v")
   # shellcheck disable=SC2048,2086 # Need to expand ssh_options with all whitespace.
   local_ssh "$host" ${ssh_options[*]} $* $cmd
 }
