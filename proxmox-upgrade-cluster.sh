@@ -6,6 +6,7 @@ set -o errexit -o pipefail
 
 program_name="$(basename "$0")"
 ssh_user="${PVE_UPGRADE_SSH_USER:-root}"
+ssh_key_auth_only=true
 use_cluster_node=false
 force_upgrade=false
 force_reboot=false
@@ -440,6 +441,11 @@ OPTIONS
     --ssh-opt|-o
         Options to pass to ssh. Can be passed muliple times.
 
+    --ssh-allow-password-auth
+        Default is to force SSH key auth with 'PasswordAuthentication=no'. Set
+        this to allow ssh passworf auth. This is strongly recommended against.
+        You may have to enter your password hundereds of times.
+
     --testing
         Flag to enable a testing mode where no actions are taken.
 
@@ -495,6 +501,9 @@ while true; do
       shift
       ssh_options+=("$1")
       ;;
+    --ssh-allow-password-auth)
+      ssh_key_auth_only=false
+      ;;
     --testing)
       testing=true
       ;;
@@ -534,6 +543,7 @@ test $verbose -ge 5 && set -x
 test $verbose -ge 4 && ssh_options+=("-v")
 
 ssh_options+=("-l $ssh_user")
+[[ "$ssh_key_auth_only" == true ]] && ssh_options+=("-o PasswordAuthentication=no")
 
 if [[ "$use_cluster_node" = true && ${#cluster_nodes[@]} -ne 0 ]]; then
   log_error "ERROR: Only one of --cluster-node, or --nodes can be used."
