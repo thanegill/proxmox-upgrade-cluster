@@ -12,6 +12,7 @@ cluster_node_use_ip=false
 force_upgrade=false
 force_reboot=false
 pkgs_reinstall=("proxmox-truenas")
+jq_bin="jq"
 
 declare cluster_node
 declare -na cluster_nodes
@@ -132,7 +133,7 @@ node_pvesh() {
   local args=$3
   json="$(node_ssh "$node" "pvesh get $path $args --output-form=json")"
   log_level 3 "[$node] JSON output:"
-  echo "$json" | jq | log_pipe_level 3 "[$node]"
+  echo "$json" | $jq_bin | log_pipe_level 3 "[$node]"
   echo "$json"
 }
 
@@ -162,9 +163,9 @@ get_cluster_nodes() {
   local node=$1
   local -a nodes
   if [[ "$cluster_node_use_ip" == true ]]; then
-    node_pvesh "$node" "cluster/status" | jq -rc '[.[] | select(.type == "node") | .ip] | join(" ")'
+    node_pvesh "$node" "cluster/status" | $jq_bin -rc '[.[] | select(.type == "node") | .ip] | join(" ")'
   else
-    node_pvesh "$node" "cluster/status" | jq -rc '[.[] | select(.type == "node") | .name] | join(" ")'
+    node_pvesh "$node" "cluster/status" | $jq_bin -rc '[.[] | select(.type == "node") | .name] | join(" ")'
   fi
 }
 
@@ -222,34 +223,34 @@ apt_update_nodes() {
 node_get_running_lxc() {
   local node=$1
   # shellcheck disable=SC2016 # $(hostname) is supposed to run in remote host.
-  node_pvesh "$node" 'nodes/$(hostname)/lxc' | jq -rc '[.[] | select(.status != "stopped")]'
+  node_pvesh "$node" 'nodes/$(hostname)/lxc' | $jq_bin -rc '[.[] | select(.status != "stopped")]'
 }
 
 node_get_running_qemu() {
   local node=$1
   # shellcheck disable=SC2016 # $(hostname) is supposed to run in remote host.
-  node_pvesh "$node" 'nodes/$(hostname)/qemu' | jq -rc '[.[] | select(.status != "stopped")]'
+  node_pvesh "$node" 'nodes/$(hostname)/qemu' | $jq_bin -rc '[.[] | select(.status != "stopped")]'
 }
 
 node_get_running_count() {
   local node=$1
-  lxc_count="$(node_get_running_lxc "$node" | jq -rc '.|length')"
+  lxc_count="$(node_get_running_lxc "$node" | $jq_bin -rc '.|length')"
   log_verbose "[$node] Running LXC count: $lxc_count"
 
-  qemu_count="$(node_get_running_qemu "$node" | jq -rc '.|length')"
+  qemu_count="$(node_get_running_qemu "$node" | $jq_bin -rc '.|length')"
   log_verbose "[$node] Running QEMU count: $qemu_count"
   echo "$((lxc_count + qemu_count))"
 }
 
 node_get_offline_count() {
   local node=$1
-  node_pvesh "$node" 'cluster/ha/status/manager_status' | jq -rc '[.manager_status.node_status[] | select(. != "online")] | length'
+  node_pvesh "$node" 'cluster/ha/status/manager_status' | $jq_bin -rc '[.manager_status.node_status[] | select(. != "online")] | length'
 }
 
 node_get_mode() {
   local node=$1
   hostname=$(node_ssh "$node" hostname)
-  node_pvesh "$node" 'cluster/ha/status/manager_status' | jq -rc ".manager_status.node_status.$hostname"
+  node_pvesh "$node" 'cluster/ha/status/manager_status' | $jq_bin -rc ".manager_status.node_status.$hostname"
 }
 
 node_wait_until_mode() {
@@ -289,7 +290,7 @@ node_get_running_tasks() {
 
 node_is_running_task() {
   local node=$1
-  task_count=$(node_get_running_tasks "$node" | jq -rc '.|length')
+  task_count=$(node_get_running_tasks "$node" | $jq_bin -rc '.|length')
   if [[ "$task_count" != "0" ]]; then
     return 1 # false
   fi
@@ -308,11 +309,11 @@ node_wait_all_tasks_completed() {
   local node=$1
 
   log_status "[cluster] Waiting until all tasks have completed..."
-  task_count=$(node_get_running_tasks "$node" | jq -rc '.|length')
+  task_count=$(node_get_running_tasks "$node" | $jq_bin -rc '.|length')
   until [[ "$task_count" == "0" ]]; do
     log "[cluster] Number of running tasks $task_count"
     sleep 5s
-    task_count=$(node_get_running_tasks "$node" | jq -rc '.|length')
+    task_count=$(node_get_running_tasks "$node" | $jq_bin -rc '.|length')
   done
   log_success "[cluster] Has reached zero running tasks"
 }
@@ -469,6 +470,9 @@ OPTIONS
         those that aren't booted with the same kernal as the currenlty installed
         one.
 
+    --jq-bin PATH
+        Path to 'jq' binary.
+
     --verbose, -v
         Log actions and details to stdout. When multiple -v options are given,
         enable verbose logging for de-bugging purposes.
@@ -527,6 +531,10 @@ while true; do
       ;;
     --force-reboot)
       force_reboot=true
+      ;;
+    --jq-bin)
+      shift
+      jq_bin+=("$1")
       ;;
     --verbose)
       verbose=$((verbose + 1))
