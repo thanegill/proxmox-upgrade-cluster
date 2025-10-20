@@ -428,23 +428,27 @@ node_post_upgrade() {
 usage() {
 cat << EOF
 NAME
-    $program_name -
+    $program_name - Perform a rolling upgrade for a Proxmox cluster
 
 SYNOPSIS
-    $program_name [--help|-h]
+    $program_name [OPTIONS] --cluster-node|-c [NODE]
+
+    $program_name [OPTIONS] --node|-n [NODE] -n [NODE] [...]
+
+    $program_name --help
 
 OPTIONS
 
-    --cluster-node|-c
+    -c HOSTNAME, --cluster-node HOSTNAME
         A node in a cluster to pull all nodes from.
 
-    --node|-n
+    -n HOSTNAME, --node HOSTNAME
         Node(s) to upgrade. Can be passed muliple times.
 
-    --ssh-user|-u
+    -u USER, --ssh-user USER
         SSH user to authenticate with. Defaults to "$ssh_user".
 
-    --ssh-opt|-o
+    -o SSH_OPT, --ssh-opt SSH_OPT
         Options to pass to ssh. Can be passed muliple times.
 
     --ssh-allow-password-auth
@@ -458,9 +462,9 @@ OPTIONS
     --testing
         Flag to enable a testing mode where no actions are taken.
 
-    --pkg-reinstall
+    --pkg-reinstall PACKAGE
         Package(s) on the hosts to reinstall with 'apt-get reinstall' post
-        upgrade. Can be passed muliple times.
+        upgrade. Can be passed muliple times. Defaults to "${pkgs_reinstall[@]}"
 
     --force-upgrade
         Flag to force all nodes to upgrade, and not only those with avaible upgrades.
@@ -473,12 +477,12 @@ OPTIONS
     --jq-bin PATH
         Path to 'jq' binary.
 
-    --verbose, -v
+    -v, --verbose
         Log actions and details to stdout. When multiple -v options are given,
         enable verbose logging for de-bugging purposes.
 
-    --help, -h
-        Show this message
+    -h, --help
+        Show this message.
 
 EXAMPLE
     $program_name -c pve1
