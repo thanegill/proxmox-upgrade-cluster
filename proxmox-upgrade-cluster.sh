@@ -130,7 +130,7 @@ node_pvesh() {
   local path=$2
   local args=$3
   json="$(node_ssh "$node" "pvesh get $path $args --output-form=json")"
-  log_debug "[$node] JSON output:"
+  log_level 3 "[$node] JSON output:"
   echo "$json" | jq | log_pipe_level 3 "[$node]"
   echo "$json"
 }
