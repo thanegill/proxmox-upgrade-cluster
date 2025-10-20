@@ -136,7 +136,8 @@ node_pvesh() {
 
 is_node_up() {
   local node=$1
-  node_ssh "$node" whoami "-oConnectTimeout=5" | log_pipe_level 3 "[$node]"
+  local timeout=${5:-2}
+  node_ssh "$node" whoami "-oConnectTimeout=$timeout" | log_pipe_level 3 "[$node]"
 }
 
 all_nodes_up() {
