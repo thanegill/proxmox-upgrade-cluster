@@ -377,10 +377,10 @@ node_upgrade() {
 node_needs_reboot() {
   local node=$1
 
-  expected_kernal="$(node_ssh "$node" 'grep vmlinuz /boot/grub/grub.cfg' | head -1 | awk '{ print $2 }' | sed -e 's%/boot/vmlinuz-%%;s%/ROOT/pve-1@%%')"
-  booted_kernal=$(node_ssh "$node" 'uname -r')
+  expected_kernel="$(node_ssh "$node" 'grep vmlinuz /boot/grub/grub.cfg' | head -1 | awk '{ print $2 }' | sed -e 's%/boot/vmlinuz-%%;s%/ROOT/pve-1@%%')"
+  booted_kernel=$(node_ssh "$node" 'uname -r')
 
-  test "$expected_kernal" != "$booted_kernal"
+  test "$expected_kernel" != "$booted_kernel"
 }
 
 node_reboot() {
@@ -453,7 +453,7 @@ OPTIONS
 
     --ssh-allow-password-auth
         Default is to force SSH key auth with 'PasswordAuthentication=no'. Set
-        this to allow ssh passworf auth. This is strongly recommended against.
+        this to allow ssh password auth. This is strongly recommended against.
         You may have to enter your password hundereds of times.
 
     --cluster-node-use-ip
@@ -470,8 +470,8 @@ OPTIONS
         Flag to force all nodes to upgrade, and not only those with avaible upgrades.
 
     --force-reboot
-        Flag to forace all nodes to be rebooted durring upgrade, and not only
-        those that aren't booted with the same kernal as the currenlty installed
+        Flag to force all nodes to be rebooted durring upgrade, and not only
+        those that aren't booted with the same kernel as the currenlty installed
         one.
 
     --jq-bin PATH
@@ -485,7 +485,15 @@ OPTIONS
         Show this message.
 
 EXAMPLE
-    $program_name -c pve1
+
+    Upgrade all nodes in a cluster, retreiving the cluster nodes from 'pve1':
+
+        $program_name -c pve1
+
+
+    Upgrade only nodes pve2, pve3:
+
+        $program_name -n pve2 -n pve3
 EOF
 }
 
