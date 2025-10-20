@@ -148,9 +148,9 @@ all_nodes_up() {
   local all_up=true
   for node in "${nodes[@]}"; do
     if is_node_up "$node"; then
-      log_verbose "[$node] Is up."
+      log_verbose "[$node] Node is up."
     else
-      log_alert "[$node] Is down."
+      log_alert "[$node] Node is down."
       all_up=false
     fi
   done
