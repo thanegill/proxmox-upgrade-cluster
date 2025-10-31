@@ -12,6 +12,7 @@ cluster_node_use_ip=false
 force_upgrade=false
 force_reboot=false
 use_maintenance_mode=true
+allow_running_vms=false
 pkgs_reinstall=("proxmox-truenas")
 jq_bin="jq"
 
@@ -274,6 +275,12 @@ node_wait_until_mode() {
 
 node_wait_until_no_running_vms() {
   local node=$1
+
+  if [[ "$allow_running_vms" == true ]]; then
+    log_warning "[$node] Not checking for running QEMU and LXC."
+    return 0
+  fi
+
   log_status "[$node] Waiting until all QEMU and LXC are migrated..."
   count="$(node_get_running_count "$node")"
   until [[ $count -eq 0 ]]; do
@@ -489,6 +496,9 @@ OPTIONS
         Don't set node to maintenance mode when upgrading, this will disable
         HA migrations.
 
+    --allow-running-vms
+       Disable check for running LXC and QEMU on the node prior to upgrade.
+
     --jq-bin PATH
         Path to 'jq' binary.
 
@@ -561,6 +571,9 @@ while true; do
       ;;
     --no-maintenance-mode)
       use_maintenance_mode=false
+      ;;
+    --allow-running-vms)
+      allow_running_vms=true
       ;;
     --jq-bin)
       shift
