@@ -639,7 +639,9 @@ else
   log_success "No tasks are running."
 fi
 
+log_status "Checking for updates on all nodes..."
 apt_update_nodes cluster_nodes
+
 if [[ "$force_upgrade" == true ]]; then
   upgrade_nodes=("${cluster_nodes[@]}")
   log_warning "Forcing upgrade for all nodes, not just those that have updates available."
