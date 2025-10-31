@@ -29,15 +29,14 @@ log_prefix="[%F %T]"
 log_pipe_level() {
   # pipe to $log_output with prefix and optional timestamp
   local -i level=$1
-  local prefix=${2:-""}
-  local prefix="$log_prefix$prefix"
+  local prefix=$2
 
   if [[ $verbose -lt $level ]]; then return 0; fi
 
   if [[ "$prefix" = "" ]]; then
-    cat - > $log_output
+    cat - | ts "$log_prefix" > $log_output
   else
-    cat - | ts "$prefix" > $log_output
+    cat - | sed  "s/^/$prefix /" | ts "$log_prefix" > $log_output
   fi
 }
 
