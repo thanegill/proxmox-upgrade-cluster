@@ -11,6 +11,7 @@ use_cluster_node=false
 cluster_node_use_ip=false
 force_upgrade=false
 force_reboot=false
+use_maintenance_mode=true
 pkgs_reinstall=("proxmox-truenas")
 jq_bin="jq"
 
@@ -335,6 +336,11 @@ node_pre_maintenance_check() {
 node_enter_maintenance() {
   local node=$1
 
+  if [[ "$use_maintenance_mode" == false ]]; then
+    log_warning "[$node] Not setting maintenance mode"
+    return 0
+  fi
+
   log "[$node] Enabling maintenance mode"
   # shellcheck disable=SC2016 # $(hostname) is supposed to run in remote host.
   node_ssh_no_op "$node" 'ha-manager crm-command node-maintenance enable $(hostname)' | log_pipe_level 1 "[$node]    "
@@ -347,6 +353,10 @@ node_enter_maintenance() {
 
 node_exit_maintenance() {
   local node=$1
+
+  if [[ "$use_maintenance_mode" == false ]]; then
+    return 0
+  fi
 
   log "[$node] Disabling maintenance mode"
   # shellcheck disable=SC2016 # $(hostname) is supposed to run in remote host.
@@ -475,6 +485,10 @@ OPTIONS
         those that aren't booted with the same kernel as the currenlty installed
         one.
 
+    --no-maintenance-mode
+        Don't set node to maintenance mode when upgrading, this will disable
+        HA migrations.
+
     --jq-bin PATH
         Path to 'jq' binary.
 
@@ -544,6 +558,9 @@ while true; do
       ;;
     --force-reboot)
       force_reboot=true
+      ;;
+    --no-maintenance-mode)
+      use_maintenance_mode=false
       ;;
     --jq-bin)
       shift
@@ -648,6 +665,10 @@ if [[ "$force_upgrade" == true ]]; then
 else
   # shellcheck disable=2207
   upgrade_nodes=($(get_nodes_upgradeable cluster_nodes))
+fi
+
+if [[ "$use_maintenance_mode" == false ]]; then
+  log_warning "Not using maintenance mode when upgrading."
 fi
 
 if [[ ${#upgrade_nodes[@]} -eq 0 ]]; then
