@@ -91,14 +91,14 @@ log_progress_start_end() {
   # Just a newline
   # Only log progress when no verbosity
   if [[ $verbose -eq 0 ]]; then
-    log
+    echo '' > $log_output
   fi
 }
 
 log_progress() {
   # Only log progress when no verbosity
   if [[ $verbose -eq 0 ]]; then
-    echo -n '.' | log_pipe_level 0
+    echo -n '.' > $log_output
   fi
 }
 
