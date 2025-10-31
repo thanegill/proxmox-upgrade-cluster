@@ -691,12 +691,12 @@ fi
 log_success "Using '${upgrade_nodes[*]}' as node upgrade sequence."
 
 for node in "${upgrade_nodes[@]}"; do
-   log_success "[$node] Starting upgrade steps for node"
-   node_pre_upgrade "$node"
-   node_upgrade "$node"
-   node_reboot "$node"
-   node_post_upgrade "$node"
-   log_success "[$node] Node successfully upgraded."
+  log_success "[$node] Starting upgrade steps for node"
+  node_pre_upgrade "$node"
+  node_upgrade "$node"
+  node_reboot "$node"
+  node_post_upgrade "$node"
+  log_success "[$node] Node successfully upgraded."
 done
 
 log_success "Nodes '${upgrade_nodes[*]}' successfully upgraded."
