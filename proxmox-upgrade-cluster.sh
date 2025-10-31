@@ -174,7 +174,7 @@ get_cluster_nodes() {
 
 node_has_updates() {
   local node=$1
-  updates="$(node_ssh "$node" 'apt-get -qq -s upgrade')"
+  updates="$(node_ssh "$node" 'DEBIAN_FRONTEND=noninteractive apt-get -qq -s upgrade')"
   echo "$updates" | log_pipe_level 2 "[$node]    "
   if [[ "$updates" == "" ]]; then
     return 1
@@ -213,7 +213,7 @@ get_nodes_upgradeable() {
 
 node_apt_update() {
   local node=$1
-  node_ssh "$node" 'apt-get update' | log_pipe_level 1 "[$node]    "
+  node_ssh "$node" 'DEBIAN_FRONTEND=noninteractive apt-get update' | log_pipe_level 1 "[$node]    "
 }
 
 apt_update_nodes() {
@@ -389,7 +389,7 @@ node_pre_upgrade() {
 
 node_upgrade() {
   local node=$1
-  node_ssh_no_op "$node" 'apt-get dist-upgrade -y' | log_pipe_level 0 "[$node]    "
+  node_ssh_no_op "$node" 'DEBIAN_FRONTEND=noninteractive apt-get dist-upgrade -y' | log_pipe_level 0 "[$node]    "
 }
 
 node_needs_reboot() {
@@ -437,9 +437,9 @@ node_reboot() {
 node_post_upgrade() {
   local node=$1
   log_success "[$node] Force reinstalling '${pkgs_reinstall[*]}'..."
-  node_ssh_no_op "$node" "apt-get reinstall ${pkgs_reinstall[*]}" | log_pipe_level 0 "[$node]    "
+  node_ssh_no_op "$node" "DEBIAN_FRONTEND=noninteractive apt-get reinstall ${pkgs_reinstall[*]}" | log_pipe_level 0 "[$node]    "
   log_success "[$node] Removing old packages..."
-  node_ssh_no_op "$node" "apt-get autoremove -y && apt-get autoremove -y" | log_pipe_level 0 "[$node]    "
+  node_ssh_no_op "$node" "DEBIAN_FRONTEND=noninteractive apt-get autoremove -y && apt-get autoremove -y" | log_pipe_level 0 "[$node]    "
   node_exit_maintenance "$node"
 }
 
