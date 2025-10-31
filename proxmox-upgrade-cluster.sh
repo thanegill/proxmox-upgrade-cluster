@@ -123,6 +123,7 @@ node_ssh_no_op() {
     log_warning "[$node][NO-OP] Not running '$cmd'"
     return 0
   fi
+  log "[$node] Running '$cmd'"
   # shellcheck disable=SC2048,2086 # Need to expand ssh_options with all whitespace.
   node_ssh "$node" "$cmd" "$@"
 }
