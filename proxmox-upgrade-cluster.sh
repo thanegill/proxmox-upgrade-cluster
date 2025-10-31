@@ -336,7 +336,7 @@ node_pre_maintenance_check() {
     sleep 1s
     count="$(node_get_offline_count "$node")"
   done
-  log_success "[$node] No nodes in maintenance mode."
+  log_success "[$node] All nodes are online."
 }
 
 node_enter_maintenance() {
