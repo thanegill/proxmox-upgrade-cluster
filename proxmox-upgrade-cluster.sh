@@ -20,7 +20,7 @@ declare -na upgrade_nodes
 declare -a ssh_options
 
 declare -i verbose=0
-testing=false
+dry_run=false
 log_output="/dev/stderr"
 log_prefix="[%F %T]"
 
@@ -119,7 +119,7 @@ node_ssh() {
 node_ssh_no_op() {
   local node=$1; shift
   local cmd=$1; shift
-  if [[ "$testing" = true ]]; then
+  if [[ "$dry_run" = true ]]; then
     log_warning "[$node][NO-OP] Not running '$cmd'"
     return 0
   fi
@@ -338,8 +338,8 @@ node_enter_maintenance() {
   # shellcheck disable=SC2016 # $(hostname) is supposed to run in remote host.
   node_ssh_no_op "$node" 'ha-manager crm-command node-maintenance enable $(hostname)' | log_pipe_level 1 "[$node]    "
 
-  # Don't wait for maintenance when no-op
-  if [[ "$testing" == true ]]; then return 0; fi
+  # Don't wait for maintenance when dry-run
+  if [[ "$dry_run" == true ]]; then return 0; fi
 
   node_wait_until_mode "$node" "maintenance"
 }
@@ -351,8 +351,8 @@ node_exit_maintenance() {
   # shellcheck disable=SC2016 # $(hostname) is supposed to run in remote host.
   node_ssh_no_op "$node" 'ha-manager crm-command node-maintenance disable $(hostname)' | log_pipe_level 1 "[$node]    "
 
-  # Don't wait for maintenance when no-op
-  if [[ "$testing" == true ]]; then return 0; fi
+  # Don't wait for maintenance when dry-run
+  if [[ "$dry_run" == true ]]; then return 0; fi
 
   node_wait_until_mode "$node" "online"
 }
@@ -363,8 +363,8 @@ node_pre_upgrade() {
   node_enter_maintenance "$node"
   node_wait_all_tasks_completed "$node"
 
-  # Don't wait for no running vms when no-op
-  if [[ "$testing" == true ]]; then return 0; fi
+  # Don't wait for no running vms when dry-run
+  if [[ "$dry_run" == true ]]; then return 0; fi
 
   node_wait_until_no_running_vms "$node"
 }
@@ -395,7 +395,7 @@ node_reboot() {
     return 0
   fi
 
-  if [[ $testing == true ]]; then
+  if [[ $dry_run == true ]]; then
     log_warning "[$node][NO-OP] Not rebooting"
     return 0
   fi
@@ -459,8 +459,8 @@ OPTIONS
     --cluster-node-use-ip
         When using '--cluster-node', use the IP address instead of the node name.
 
-    --testing
-        Flag to enable a testing mode where no actions are taken.
+    --dry-run
+        Flag to enable a dry_run mode where no actions are taken.
 
     --pkg-reinstall PACKAGE
         Package(s) on the hosts to reinstall with 'apt-get reinstall' post
@@ -531,8 +531,8 @@ while true; do
     --cluster-node-use-ip)
       cluster_node_use_ip=true
       ;;
-    --testing)
-      testing=true
+    --dry-run)
+      dry_run=true
       ;;
     --pkg-reinstall)
       shift
@@ -588,8 +588,8 @@ if [[ "$use_cluster_node" == false && ${#cluster_nodes[@]} -eq 0 ]]; then
   exit 1
 fi
 
-if [[ "$testing" == true ]]; then
-  log_warning "Running in testing mode."
+if [[ "$dry_run" == true ]]; then
+  log_warning "Running in dry run mode."
 fi
 
 if [[ "$use_cluster_node" = true ]]; then
