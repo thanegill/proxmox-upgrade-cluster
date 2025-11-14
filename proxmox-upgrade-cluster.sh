@@ -316,27 +316,27 @@ any_nodes_running_tasks() {
 node_wait_all_tasks_completed() {
   local node=$1
 
-  log_status "[cluster] Waiting until all tasks have completed..."
+  log_status "[$node] Waiting until all cluster tasks have completed..."
   task_count=$(node_get_running_tasks "$node" | $jq_bin -rc '.|length')
   until [[ "$task_count" == "0" ]]; do
-    log "[cluster] Number of running tasks $task_count"
+    log "[$node] Number of running cluster tasks $task_count"
     sleep 5s
     task_count=$(node_get_running_tasks "$node" | $jq_bin -rc '.|length')
   done
-  log_success "[cluster] Has reached zero running tasks"
+  log_success "[$node] Cluster has reached zero running tasks"
 }
 
 node_pre_maintenance_check() {
   local node=$1
 
-  log_status "[cluster] Checking that no nodes are currently offline..."
+  log_status "[$node] Checking that no cluster nodes are currently offline..."
   count="$(node_get_offline_count "$node")"
   until [[ "$count" == "0" ]]; do
-    log "[cluster] At least one node is currently offline. Waiting..."
+    log "[$node] At least one cluster node is currently offline. Waiting..."
     sleep 1s
     count="$(node_get_offline_count "$node")"
   done
-  log_success "[$node] All nodes are online."
+  log_success "[$node] All cluster nodes are online."
 }
 
 node_enter_maintenance() {
