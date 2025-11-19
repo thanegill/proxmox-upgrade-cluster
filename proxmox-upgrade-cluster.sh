@@ -88,7 +88,7 @@ log_debug() {
   log_level 2 "$@"
 }
 
-log_progress_start_end() {
+log_progress_end() {
   # Just a newline
   # Only log progress when no verbosity
   if [[ $verbose -eq 0 ]]; then
@@ -260,7 +260,6 @@ node_wait_until_mode() {
   local target_mode=$2
 
   log_status "[$node] Waiting until node enters $target_mode mode..."
-  log_progress_start_end
   mode=$(node_get_mode "$node")
   until [[ "$mode" == "$target_mode" ]]; do
     log_verbose "[$node] Current mode: '$mode' target mode: '$target_mode'"
@@ -268,7 +267,7 @@ node_wait_until_mode() {
     sleep 1s
     mode=$(node_get_mode "$node")
   done
-  log_progress_start_end
+  log_progress_end
   log_success "[$node] Has reached target mode: '$target_mode'"
 }
 
