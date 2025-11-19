@@ -423,19 +423,23 @@ node_reboot() {
   node_ssh_no_op "$node" 'dmesg -W' | log_pipe_level 0 "[$node]    " && true
 
   log_status "[$node] Waiting to come back up..."
-  log_progress_start_end
   until is_node_up "$node"; do
     log_progress
   done
-  log_progress_start_end
+  log_progress_end
 
   log_success "[$node] Rebooted successfully"
 }
 
 node_post_upgrade() {
   local node=$1
-  log_success "[$node] Force reinstalling '${pkgs_reinstall[*]}'..."
-  node_ssh_no_op "$node" "DEBIAN_FRONTEND=noninteractive apt-get reinstall ${pkgs_reinstall[*]}" | log_pipe_level 0 "[$node]    "
+
+  if [[ ${#pkgs_reinstall[@]} -gt 0 ]]; then
+      log_success "[$node] Force reinstalling '${pkgs_reinstall[*]}'..."
+      node_ssh_no_op "$node" "DEBIAN_FRONTEND=noninteractive apt-get reinstall ${pkgs_reinstall[*]}" | log_pipe_level 0 "[$node]    "
+  else
+      log "[$node] No packages to force reinstall."
+  fi
   log_success "[$node] Removing old packages..."
   node_ssh_no_op "$node" "DEBIAN_FRONTEND=noninteractive apt-get autoremove -y && apt-get autoremove -y" | log_pipe_level 0 "[$node]    "
   node_exit_maintenance "$node"
