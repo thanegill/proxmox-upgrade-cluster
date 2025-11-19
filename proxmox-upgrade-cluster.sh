@@ -13,7 +13,7 @@ force_upgrade=false
 force_reboot=false
 use_maintenance_mode=true
 allow_running_vms=false
-pkgs_reinstall=("proxmox-truenas")
+pkgs_reinstall=()
 jq_bin="jq"
 
 declare cluster_node
