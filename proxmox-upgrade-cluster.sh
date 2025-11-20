@@ -346,7 +346,7 @@ node_enter_maintenance() {
     return 0
   fi
 
-  log "[$node] Enabling maintenance mode"
+  log_status "[$node] Enabling maintenance mode"
   # shellcheck disable=SC2016 # $(hostname) is supposed to run in remote host.
   node_ssh_no_op "$node" 'ha-manager crm-command node-maintenance enable $(hostname)' | log_pipe_level 1 "[$node]    "
 
@@ -363,7 +363,7 @@ node_exit_maintenance() {
     return 0
   fi
 
-  log "[$node] Disabling maintenance mode"
+  log_status "[$node] Disabling maintenance mode"
   # shellcheck disable=SC2016 # $(hostname) is supposed to run in remote host.
   node_ssh_no_op "$node" 'ha-manager crm-command node-maintenance disable $(hostname)' | log_pipe_level 1 "[$node]    "
 
