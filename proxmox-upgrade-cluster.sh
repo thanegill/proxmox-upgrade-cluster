@@ -445,7 +445,7 @@ node_reboot() {
   log_alert "[$node] Rebooting in 5 seconds! Press CTRL-C to cancel..."
   sleep 5s
   log_status "[$node] Rebooting, logging shutdown dmesg:"
-  node_ssh_no_op "$node" 'reboot' 2>&1 | log_pipe_level 3 "[$node]    "
+  node_ssh_no_op "$node" 'reboot' 2>&1 | log_pipe_level 3 "[$node]    " && true
   node_ssh_no_op "$node" 'dmesg -W' 2>&1 | log_pipe_level 0 "[$node]    " && true
 
   log_status "[$node] Waiting to come back up..."
