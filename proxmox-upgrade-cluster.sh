@@ -255,6 +255,30 @@ node_get_mode() {
   node_pvesh "$node" 'cluster/ha/status/manager_status' | $jq_bin -rc ".manager_status.node_status.$hostname"
 }
 
+node_service_running() {
+  local node=$1
+  local service=$2
+  [[ "$(node_ssh "$node" "systemctl is-active $service")" == "active" ]]
+}
+
+node_wait_until_service_running() {
+  local node=$1
+  local service=$2
+
+  # Exit early with out logging if running
+  if node_service_running "$node" "$service"; then
+    return 0
+  fi
+
+  log_status "[$node] Waiting until service '$service' is running..."
+  until node_service_running "$node" "$service"; do
+    log_progress
+    sleep 1s
+  done
+  log_progress_end
+  log_success "[$node] Service '$service' has started"
+}
+
 node_wait_until_mode() {
   local node=$1
   local target_mode=$2
@@ -362,6 +386,8 @@ node_exit_maintenance() {
   if [[ "$use_maintenance_mode" == false ]]; then
     return 0
   fi
+
+  node_wait_until_service_running "$node" "pve-ha-lrm"
 
   log_status "[$node] Disabling maintenance mode"
   # shellcheck disable=SC2016 # $(hostname) is supposed to run in remote host.
