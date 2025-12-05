@@ -161,7 +161,7 @@ all_nodes_up() {
 }
 
 get_cluster_nodes() {
-  # Get list of all custer nodes from a node
+  # Get list of all cluster nodes from a node
   local node=$1
   local -a nodes
   if [[ "$cluster_node_use_ip" == true ]]; then
@@ -550,11 +550,11 @@ EXAMPLE
 EOF
 }
 
-# Exit here if sourceing for tests
+# Exit here if sourcing for tests
 if [[ -n $ONLY_SOURCE_FUNCTIONS ]]; then return 0; fi
 
 if [[ $# -eq 0 ]]; then
-  log_error "No args passed"
+  log_error "No arguments passed"
   usage
   exit 1
 fi;
