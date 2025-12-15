@@ -13,6 +13,7 @@ force_upgrade=false
 force_reboot=false
 use_maintenance_mode=true
 allow_running_vms=false
+allow_running_tasks=false
 pkgs_reinstall=()
 jq_bin="jq"
 
@@ -339,6 +340,11 @@ any_nodes_running_tasks() {
 node_wait_all_tasks_completed() {
   local node=$1
 
+  if [[ "$allow_running_tasks" == true ]]; then
+    log_warning "[$node] Not checking for running tasks."
+    return 0
+  fi
+
   log_status "[$node] Waiting until all cluster tasks have completed..."
   task_count=$(node_get_running_tasks "$node" | $jq_bin -rc '.|length')
   until [[ "$task_count" == "0" ]]; do
@@ -527,6 +533,9 @@ OPTIONS
     --allow-running-vms
        Disable check for running LXC and QEMU on the node prior to upgrade.
 
+    --allow-running-tasks
+       Disable check for running tasks on the cluster prior to upgrade.
+
     --jq-bin PATH
         Path to 'jq' binary.
 
@@ -602,6 +611,9 @@ while true; do
       ;;
     --allow-running-vms)
       allow_running_vms=true
+      ;;
+    --allow-running-tasks)
+      allow_running_tasks=true
       ;;
     --jq-bin)
       shift
@@ -689,12 +701,16 @@ else
   log_success "All nodes are online."
 fi
 
-log_status "Checking if any nodes currently have tasks running..."
-if any_nodes_running_tasks cluster_nodes; then
-  log_error "At least one node is currently running tasks."
-  exit 1
+if [[ "$allow_running_tasks" == true ]]; then
+  log_warning "Not checking for running cluster tasks."
 else
-  log_success "No tasks are running."
+  log_status "Checking if any nodes currently have tasks running..."
+  if any_nodes_running_tasks cluster_nodes; then
+    log_error "At least one node is currently running tasks."
+    exit 1
+  else
+    log_success "No tasks are running."
+  fi
 fi
 
 log_status "Checking for updates on all nodes..."
