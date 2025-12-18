@@ -277,7 +277,7 @@ node_wait_until_service_running() {
     sleep 1s
   done
   log_progress_end
-  log_success "[$node] Service '$service' has started"
+  log_success "[$node] Service '$service' started."
 }
 
 node_wait_until_mode() {
@@ -287,13 +287,13 @@ node_wait_until_mode() {
   log_status "[$node] Waiting until node enters $target_mode mode..."
   mode=$(node_get_mode "$node")
   until [[ "$mode" == "$target_mode" ]]; do
-    log_verbose "[$node] Current mode: '$mode' target mode: '$target_mode'"
+    log_verbose "[$node] Current mode '$mode' target mode '$target_mode'."
     log_progress
     sleep 1s
     mode=$(node_get_mode "$node")
   done
   log_progress_end
-  log_success "[$node] Has reached target mode: '$target_mode'"
+  log_success "[$node] Reached target mode '$target_mode'."
 }
 
 node_wait_until_no_running_vms() {
@@ -307,11 +307,11 @@ node_wait_until_no_running_vms() {
   log_status "[$node] Waiting until all QEMU and LXC are migrated..."
   count="$(node_get_running_count "$node")"
   until [[ $count -eq 0 ]]; do
-    log "[$node] Number of qemu+lxc running: $count"
+    log "[$node] Number of QEMU+LXC running: $count"
     sleep 5s
     count="$(node_get_running_count "$node")"
   done
-  log_success "[$node] Has reached zero running qemu+lxc"
+  log_success "[$node] Reached zero running QEMU+LXC."
 }
 
 node_get_running_tasks() {
@@ -348,11 +348,11 @@ node_wait_all_tasks_completed() {
   log_status "[$node] Waiting until all cluster tasks have completed..."
   task_count=$(node_get_running_tasks "$node" | $jq_bin -rc '.|length')
   until [[ "$task_count" == "0" ]]; do
-    log "[$node] Number of running cluster tasks $task_count"
+    log "[$node] Number of running cluster tasks: $task_count"
     sleep 5s
     task_count=$(node_get_running_tasks "$node" | $jq_bin -rc '.|length')
   done
-  log_success "[$node] Cluster has reached zero running tasks"
+  log_success "[$node] Cluster reached zero running tasks."
 }
 
 node_pre_maintenance_check() {
@@ -372,11 +372,11 @@ node_enter_maintenance() {
   local node=$1
 
   if [[ "$use_maintenance_mode" == false ]]; then
-    log_warning "[$node] Not setting maintenance mode"
+    log_warning "[$node] Not setting maintenance mode."
     return 0
   fi
 
-  log_status "[$node] Enabling maintenance mode"
+  log_status "[$node] Enabling maintenance mode."
   # shellcheck disable=SC2016 # $(hostname) is supposed to run in remote host.
   node_ssh_no_op "$node" 'ha-manager crm-command node-maintenance enable $(hostname)' | log_pipe_level 1 "[$node]    "
 
@@ -395,7 +395,7 @@ node_exit_maintenance() {
 
   node_wait_until_service_running "$node" "pve-ha-lrm"
 
-  log_status "[$node] Disabling maintenance mode"
+  log_status "[$node] Disabling maintenance mode."
   # shellcheck disable=SC2016 # $(hostname) is supposed to run in remote host.
   node_ssh_no_op "$node" 'ha-manager crm-command node-maintenance disable $(hostname)' | log_pipe_level 1 "[$node]    "
 
@@ -435,16 +435,16 @@ node_reboot() {
   local node=$1
 
   if [[ "$force_reboot" == true ]]; then
-    log_warning "[$node] Forcing Reboot"
+    log_warning "[$node] Forcing Reboot."
   elif node_needs_reboot "$node"; then
-    log_warning "[$node] Needs to be rebooted"
+    log_warning "[$node] Needs to be rebooted."
   else
-    log_success "[$node] Doesn't need to be rebooted"
+    log_success "[$node] Doesn't need to be rebooted."
     return 0
   fi
 
   if [[ $dry_run == true ]]; then
-    log_warning "[$node][NO-OP] Not rebooting"
+    log_warning "[$node][NO-OP] Not rebooting."
     return 0
   fi
 
@@ -460,7 +460,7 @@ node_reboot() {
   done
   log_progress_end
 
-  log_success "[$node] Rebooted successfully"
+  log_success "[$node] Rebooted successfully."
 }
 
 node_post_upgrade() {
@@ -563,7 +563,7 @@ EOF
 if [[ -n $ONLY_SOURCE_FUNCTIONS ]]; then return 0; fi
 
 if [[ $# -eq 0 ]]; then
-  log_error "No arguments passed"
+  log_error "No arguments passed."
   usage
   exit 1
 fi;
@@ -736,12 +736,12 @@ fi
 log_success "Using '${upgrade_nodes[*]}' as node upgrade sequence."
 
 for node in "${upgrade_nodes[@]}"; do
-  log_success "[$node] Starting upgrade steps for node"
+  log_success "[$node] Starting upgrade."
   node_pre_upgrade "$node"
   node_upgrade "$node"
   node_reboot "$node"
   node_post_upgrade "$node"
-  log_success "[$node] Node successfully upgraded."
+  log_success "[$node] Successfully upgraded."
 done
 
 log_success "Nodes '${upgrade_nodes[*]}' successfully upgraded."
