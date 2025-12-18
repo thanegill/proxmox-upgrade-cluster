@@ -512,7 +512,7 @@ OPTIONS
         When using '--cluster-node', use the IP address instead of the node name.
 
     --dry-run
-        Flag to enable a dry_run mode where no actions are taken.
+        Flag to enable a dry run mode where no actions are taken.
 
     --pkg-reinstall PACKAGE
         Package(s) on the hosts to reinstall with 'apt-get reinstall' post
