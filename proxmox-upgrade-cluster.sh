@@ -34,7 +34,7 @@ log_pipe_level() {
 
   if [[ $verbose -lt $level ]]; then return 0; fi
 
-  if [[ "$prefix" = "" ]]; then
+  if [[ -z "$prefix" ]]; then
     cat - | ts "$log_prefix" > $log_output
   else
     cat - | sed  "s/^/$prefix /" | ts "$log_prefix" > $log_output
@@ -93,7 +93,7 @@ log_progress_end() {
   # Just a newline
   # Only log progress when no verbosity
   if [[ $verbose -eq 0 ]]; then
-    echo '' > $log_output
+    echo > $log_output
   fi
 }
 
@@ -134,7 +134,7 @@ node_pvesh() {
   local node=$1
   local path=$2
   local args=$3
-  json="$(node_ssh "$node" "pvesh get $path $args --output-form=json")"
+  json=$(node_ssh "$node" "pvesh get $path $args --output-form=json")
   log_level 3 "[$node] JSON output:"
   echo "$json" | $jq_bin | log_pipe_level 3 "[$node]"
   echo "$json"
@@ -176,7 +176,7 @@ node_has_updates() {
   local node=$1
   updates="$(node_ssh "$node" 'DEBIAN_FRONTEND=noninteractive apt-get -qq -s upgrade')"
   echo "$updates" | log_pipe_level 2 "[$node]    "
-  if [[ "$updates" == "" ]]; then
+  if [[ -z "$updates" ]]; then
     return 1
   else
     log_debug "$updates"
