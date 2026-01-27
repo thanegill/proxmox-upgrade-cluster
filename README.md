@@ -19,6 +19,14 @@ nodes.
 * SSH access to all Proxmox nodes
 * [jq](https://jqlang.org/) installed on your system, can be specified with `--jq-bin`.
 
+## Assumptions, omissions, and possible future features
+
+* Cluster HA is enabled with all guests managed.
+* SSH is available to all nodes (outside of reboots) to all nodes while the running.
+* That running this script is not stopped mid-run. Currently, it doesn't to any cleanup or checking to make sure the cluster is left in a working state. Manual intervention may be needed if exiting or errors occur.
+* SSH Key Auth is set up and working for the root user. Users other than root have not been tested.
+* No rebalancing or guest migration outside the cluster HA. Recommended rebalancing after either manually or with other tools.
+
 
 ## Usage
 ``` man
