@@ -521,7 +521,7 @@ OPTIONS
 
     --pkg-reinstall PACKAGE
         Package(s) on the hosts to reinstall with 'apt-get reinstall' post
-        upgrade. Can be passed multiple times. Defaults to "${pkgs_reinstall[@]}"
+        upgrade. Can be passed multiple times. Defaults to "${pkgs_reinstall[@]}".
 
     --force-upgrade
         Flag to force all nodes to upgrade, and not only those with available upgrades.
@@ -532,14 +532,14 @@ OPTIONS
         one.
 
     --no-maintenance-mode
-        Don't set node to maintenance mode when upgrading, this will disable
+        Don't set node to maintenance mode when upgrading. This will disable
         HA migrations.
 
     --allow-running-guests
-       Disable check for running guests on the node prior to upgrade.
+        Disable check for running guests on the node prior to upgrade.
 
     --allow-running-tasks
-       Disable check for running tasks on the cluster prior to upgrade.
+        Disable check for running tasks on the cluster prior to upgrade.
 
     --jq-bin PATH
         Path to 'jq' binary.
