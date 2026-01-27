@@ -37,36 +37,46 @@ OPTIONS
         A node in a cluster to pull all nodes from.
 
     -n HOSTNAME, --node HOSTNAME
-        Node(s) to upgrade. Can be passed muliple times.
+        Node(s) to upgrade. Can be passed multiple times.
 
     -u USER, --ssh-user USER
         SSH user to authenticate with. Defaults to "root".
 
     -o SSH_OPT, --ssh-opt SSH_OPT
-        Options to pass to ssh. Can be passed muliple times.
+        Options to pass to ssh. Can be passed multiple times.
 
     --ssh-allow-password-auth
         Default is to force SSH key auth with 'PasswordAuthentication=no'. Set
-        this to allow ssh passworf auth. This is strongly recommended against.
+        this to allow ssh password auth. This is strongly recommended against.
         You may have to enter your password hundereds of times.
 
     --cluster-node-use-ip
         When using '--cluster-node', use the IP address instead of the node name.
 
-    --testing
-        Flag to enable a testing mode where no actions are taken.
+    --dry-run
+        Flag to enable a dry run mode where no actions are taken.
 
     --pkg-reinstall PACKAGE
         Package(s) on the hosts to reinstall with 'apt-get reinstall' post
-        upgrade. Can be passed muliple times. Defaults to "proxmox-truenas"
+        upgrade. Can be passed multiple times. Defaults to "".
 
     --force-upgrade
-        Flag to force all nodes to upgrade, and not only those with avaible upgrades.
+        Flag to force all nodes to upgrade, and not only those with available upgrades.
 
     --force-reboot
-        Flag to force all nodes to be rebooted durring upgrade, and not only
-        those that aren't booted with the same kernal as the currenlty installed
+        Flag to force all nodes to be rebooted during upgrade, and not only
+        those that aren't booted with the same kernel as the currently installed
         one.
+
+    --no-maintenance-mode
+        Don't set node to maintenance mode when upgrading. This will disable
+        HA migrations.
+
+    --allow-running-guests
+        Disable check for running guests on the node prior to upgrade.
+
+    --allow-running-tasks
+        Disable check for running tasks on the cluster prior to upgrade.
 
     --jq-bin PATH
         Path to 'jq' binary.
@@ -80,7 +90,7 @@ OPTIONS
 
 EXAMPLE
 
-    Upgrade all nodes in a cluster, retreiving the cluster nodes from 'pve1':
+    Upgrade all nodes in a cluster, retrieving the cluster nodes from 'pve1':
 
         proxmox-upgrade-cluster.sh -c pve1
 
