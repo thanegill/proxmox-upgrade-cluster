@@ -90,10 +90,11 @@ log_debug() {
 }
 
 log_progress_end() {
-  # Just a newline
+  # Clears progress line
   # Only log progress when no verbosity
   if [[ $verbose -eq 0 ]]; then
-    echo > $log_output
+    # Erase line, move cursor to start of line.
+    printf "\033[2K\r"
   fi
 }
 
