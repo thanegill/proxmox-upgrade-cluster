@@ -12,7 +12,7 @@ cluster_node_use_ip=false
 force_upgrade=false
 force_reboot=false
 use_maintenance_mode=true
-allow_running_vms=false
+allow_running_guests=false
 allow_running_tasks=false
 pkgs_reinstall=()
 jq_bin="jq"
@@ -296,22 +296,22 @@ node_wait_until_mode() {
   log_success "[$node] Reached target mode '$target_mode'."
 }
 
-node_wait_until_no_running_vms() {
+node_wait_until_no_running_guests() {
   local node=$1
 
-  if [[ "$allow_running_vms" == true ]]; then
+  if [[ "$allow_running_guests" == true ]]; then
     log_warning "[$node] Not checking for running QEMU and LXC."
     return 0
   fi
 
-  log_status "[$node] Waiting until all QEMU and LXC are migrated..."
+  log_status "[$node] Waiting until all guests are migrated..."
   count="$(node_get_running_count "$node")"
   until [[ $count -eq 0 ]]; do
-    log "[$node] Number of QEMU+LXC running: $count"
+    log "[$node] Number of guests running: $count"
     sleep 5s
     count="$(node_get_running_count "$node")"
   done
-  log_success "[$node] Reached zero running QEMU+LXC."
+  log_success "[$node] Reached zero running guests."
 }
 
 node_get_running_tasks() {
@@ -411,10 +411,10 @@ node_pre_upgrade() {
   node_enter_maintenance "$node"
   node_wait_all_tasks_completed "$node"
 
-  # Don't wait for no running vms when dry-run
+  # Don't wait for no running guests when dry-run
   if [[ "$dry_run" == true ]]; then return 0; fi
 
-  node_wait_until_no_running_vms "$node"
+  node_wait_until_no_running_guests "$node"
 }
 
 node_upgrade() {
@@ -530,8 +530,8 @@ OPTIONS
         Don't set node to maintenance mode when upgrading, this will disable
         HA migrations.
 
-    --allow-running-vms
-       Disable check for running LXC and QEMU on the node prior to upgrade.
+    --allow-running-guests
+       Disable check for running guests on the node prior to upgrade.
 
     --allow-running-tasks
        Disable check for running tasks on the cluster prior to upgrade.
@@ -609,8 +609,8 @@ while true; do
     --no-maintenance-mode)
       use_maintenance_mode=false
       ;;
-    --allow-running-vms)
-      allow_running_vms=true
+    --allow-running-guests)
+      allow_running_guests=true
       ;;
     --allow-running-tasks)
       allow_running_tasks=true
