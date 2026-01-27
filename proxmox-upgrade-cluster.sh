@@ -495,13 +495,13 @@ OPTIONS
         A node in a cluster to pull all nodes from.
 
     -n HOSTNAME, --node HOSTNAME
-        Node(s) to upgrade. Can be passed muliple times.
+        Node(s) to upgrade. Can be passed multiple times.
 
     -u USER, --ssh-user USER
         SSH user to authenticate with. Defaults to "$ssh_user".
 
     -o SSH_OPT, --ssh-opt SSH_OPT
-        Options to pass to ssh. Can be passed muliple times.
+        Options to pass to ssh. Can be passed multiple times.
 
     --ssh-allow-password-auth
         Default is to force SSH key auth with 'PasswordAuthentication=no'. Set
@@ -516,14 +516,14 @@ OPTIONS
 
     --pkg-reinstall PACKAGE
         Package(s) on the hosts to reinstall with 'apt-get reinstall' post
-        upgrade. Can be passed muliple times. Defaults to "${pkgs_reinstall[@]}"
+        upgrade. Can be passed multiple times. Defaults to "${pkgs_reinstall[@]}"
 
     --force-upgrade
-        Flag to force all nodes to upgrade, and not only those with avaible upgrades.
+        Flag to force all nodes to upgrade, and not only those with available upgrades.
 
     --force-reboot
-        Flag to force all nodes to be rebooted durring upgrade, and not only
-        those that aren't booted with the same kernel as the currenlty installed
+        Flag to force all nodes to be rebooted during upgrade, and not only
+        those that aren't booted with the same kernel as the currently installed
         one.
 
     --no-maintenance-mode
@@ -548,7 +548,7 @@ OPTIONS
 
 EXAMPLE
 
-    Upgrade all nodes in a cluster, retreiving the cluster nodes from 'pve1':
+    Upgrade all nodes in a cluster, retrieving the cluster nodes from 'pve1':
 
         $program_name -c pve1
 
