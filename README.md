@@ -1,22 +1,23 @@
 # proxmox-upgrade-cluster
 
-proxmox-upgrade-cluster.sh is a Bash script that performs a rolling upgrade of
+`proxmox-upgrade-cluster.sh` is a Bash script that performs a rolling upgrade of
 a Proxmox cluster. It automates the upgrade and optional reboot of one or more
 nodes.
 
 ## Features
 
-* Can automatically determine cluster members.
-* Upgrade all or specific nodes in a Proxmox cluster.
-* Reboot nodes only when needed, or can optionally force a reboot.
-* Optional force package reinstall after upgrade.
-* Testing mode `--testing` that performs no-ops.
+* Automatically determine cluster members (`-c HOSTNAME`).
+* Upgrade all or specific nodes (`-n HOSTNAME`).
+* Reboot nodes only when needed, or can optionally force a reboot (`--force-reboot`).
+* Optionally force package reinstallation after upgrade (`--pkg-reinstall PACKAGE`).
+* No-op mode (`--dry-run`).
+* Multiple levels of verbosity (`-v`, `-vv`, `-vvv`).
 
 ## Requirements
 
 * Bash
 * SSH access to all Proxmox nodes
-* jq installed on your system, can be specified with `--jq-bin`.
+* [jq](https://jqlang.org/) installed on your system, can be specified with `--jq-bin`.
 
 
 ## Usage
