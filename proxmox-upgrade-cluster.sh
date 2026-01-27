@@ -307,10 +307,12 @@ node_wait_until_no_running_guests() {
   log_status "[$node] Waiting until all guests are migrated..."
   count="$(node_get_running_count "$node")"
   until [[ $count -eq 0 ]]; do
-    log "[$node] Number of guests running: $count"
+    log_verbose "[$node] Number of guests running: $count"
+    log_progress
     sleep 5s
     count="$(node_get_running_count "$node")"
   done
+  log_progress_end
   log_success "[$node] Reached zero running guests."
 }
 
@@ -348,10 +350,12 @@ node_wait_all_tasks_completed() {
   log_status "[$node] Waiting until all cluster tasks have completed..."
   task_count=$(node_get_running_tasks "$node" | $jq_bin -rc '.|length')
   until [[ "$task_count" == "0" ]]; do
-    log "[$node] Number of running cluster tasks: $task_count"
+    log_verbose "[$node] Number of running cluster tasks: $task_count"
+    log_progress
     sleep 5s
     task_count=$(node_get_running_tasks "$node" | $jq_bin -rc '.|length')
   done
+  log_progress_end
   log_success "[$node] Cluster reached zero running tasks."
 }
 
