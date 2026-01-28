@@ -48,7 +48,18 @@ log_level() {
 }
 
 log() {
+  # Aliais for log_level 0
   log_level 0 "$*"
+}
+
+log_verbose() {
+  # Aliais for log_level 1
+  log_level 1 "$@"
+}
+
+log_debug() {
+  # Aliais for log_level 2
+  log_level 2 "$@"
 }
 
 log_color() {
@@ -63,11 +74,12 @@ log_alert() {
 }
 
 log_error() {
+  # Alias to log_alert
   log_alert "$@"
 }
 
 log_status() {
-  # Log in red
+  # Log in purple
   log_color 35 "$@"
 }
 
@@ -81,12 +93,11 @@ log_warning() {
   log_color 33 "$@"
 }
 
-log_verbose() {
-  log_level 1 "$@"
-}
-
-log_debug() {
-  log_level 2 "$@"
+log_progress() {
+  # Only log progress when no verbosity
+  if [[ $verbose -eq 0 ]]; then
+    echo -n '.' > $log_output
+  fi
 }
 
 log_progress_end() {
@@ -95,13 +106,6 @@ log_progress_end() {
   if [[ $verbose -eq 0 ]]; then
     # Erase line, move cursor to start of line.
     printf "\033[2K\r"
-  fi
-}
-
-log_progress() {
-  # Only log progress when no verbosity
-  if [[ $verbose -eq 0 ]]; then
-    echo -n '.' > $log_output
   fi
 }
 
