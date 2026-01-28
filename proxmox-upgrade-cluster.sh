@@ -105,7 +105,7 @@ log_progress_end() {
   # Only log progress when no verbosity
   if [[ $verbose -eq 0 ]]; then
     # Erase line, move cursor to start of line.
-    printf "\033[2K\r"
+    printf "\033[2K\r" > $log_output
   fi
 }
 
