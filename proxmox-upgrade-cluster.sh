@@ -624,7 +624,7 @@ while true; do
       ;;
     --jq-bin)
       shift
-      jq_bin+=("$1")
+      jq_bin="$1"
       ;;
     --verbose)
       verbose=$((verbose + 1))
