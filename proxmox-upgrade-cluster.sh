@@ -26,20 +26,41 @@ declare -a ssh_options=()
 declare -i verbose=0
 dry_run=false
 log_output="/dev/stderr"
-log_prefix="[%F %T]"
+
 
 log_pipe_level() {
   # pipe to $log_output with prefix and optional timestamp
-  local -i level=$1
-  local prefix=$2
+  local -i level=${1?}
+  local prefix_arg="${2:-}"
 
-  if [[ $verbose -lt $level ]]; then return 0; fi
+  # Return if verbosity level is not met.
+  test $verbose -lt $level && return 0
 
-  if [[ -z "$prefix" ]]; then
-    cat - | ts "$log_prefix" > $log_output
-  else
-    cat - | sed  "s/^/$prefix /" | ts "$log_prefix" > $log_output
+  local prefix="${LOG_PREFIX:-}${prefix_arg}"
+
+  if [[ $verbose -ge 1 ]]; then
+    declare -a log_level_map=(
+      "INFO   "
+      "VERBOSE"
+      "DEBUG  "
+      "DEBUG2 "
+      "DEBUG3 "
+      "SSH    "
+      "BASH   "
+      "SSH2   "
+    )
+    local level_name=${log_level_map[$level]:=$level}
+    local prefix="[$level_name]${prefix}"
   fi
+
+  # Subsecond timestamp if verbose >= 3
+  if [[ $verbose -ge 3 ]]; then
+    prefix="[%F %.T]$prefix"
+  else
+    prefix="[%F %T]$prefix"
+  fi
+
+  cat - | ts "$prefix" > $log_output
 }
 
 log_level() {
@@ -48,19 +69,35 @@ log_level() {
   echo -e "$@" | log_pipe_level "$level"
 }
 
+log_prefix() {
+  local prefix=${1?}
+  shift
+  LOG_PREFIX+="[$prefix]" "$@"
+}
+
 log() {
-  # Aliais for log_level 0
+  # Alias for log_level 0
   log_level 0 "$*"
 }
 
 log_verbose() {
-  # Aliais for log_level 1
+  # Alias for log_level 1
   log_level 1 "$@"
 }
 
 log_debug() {
-  # Aliais for log_level 2
+  # Alias for log_level 2
   log_level 2 "$@"
+}
+
+log_debug2() {
+  # Alias for log_level 3
+  log_level 3 "$@"
+}
+
+log_debug3() {
+  # Alias for log_level 4
+  log_level 4 "$@"
 }
 
 log_color() {
@@ -118,17 +155,17 @@ local_ssh() {
 node_ssh() {
   local host=$1; shift
   local cmd=$1; shift
-  log_debug "[$host] Running command '$cmd'"
+  log_prefix "$host" log_debug "Running command '$cmd'"
 
   # shellcheck disable=SC2048,2086 # Need to expand ssh_options with all whitespace.
-  local_ssh "$host" ${ssh_options[*]} $* "$cmd" > /dev/stdout 2> >(log_pipe_level 3 "[$node][pvesh stderr]")
+  local_ssh "$host" ${ssh_options[*]} $* "$cmd" > /dev/stdout 2> >(log_prefix "$node" log_pipe_level 3 "[stderr]")
 }
 
 node_ssh_no_op() {
   local node=$1; shift
   local cmd=$1; shift
   if [[ "$dry_run" = true ]]; then
-    log_warning "[$node][NO-OP] Not running '$cmd'"
+    log_prefix "NO-OP" log_prefix "$node" log_warning " Not running '$cmd'"
     return 0
   fi
   node_ssh "$node" "$cmd" "$@"
@@ -139,7 +176,7 @@ node_pvesh() {
   local path=${2?}
   local args=${3:-}
   json=$(node_ssh "$node" "pvesh get $path $args --output-form=json")
-  log_level 3 "[$node] JSON output:"
+  log_prefix "$node" log_debug2 "JSON output:"
   echo "$json" | $jq_bin | log_pipe_level 3 "[$node]"
   echo "$json"
 }
@@ -155,9 +192,9 @@ all_nodes_up() {
   local all_up=true
   for node in "${nodes[@]}"; do
     if is_node_up "$node"; then
-      log_verbose "[$node] Node is up."
+      log_prefix "$node" log_verbose "Node is up."
     else
-      log_alert "[$node] Node is down."
+      log_prefix "$node" log_alert "Node is down."
       all_up=false
     fi
   done
@@ -205,11 +242,11 @@ get_nodes_upgradeable() {
   local -a nodes_with_updates
   for node in "${nodes[@]}"; do
     if node_has_updates "$node"; then
-      log_success "[$node] Updates available."
+      log_prefix "$node" log_success "Updates available."
       nodes_with_updates+=("$node")
     else
-      log_success "[$node] No updates available."
-      log_verbose "[$node] Removed from upgrade sequence."
+      log_prefix "$node" log_success "No updates available."
+      log_prefix "$node" log_verbose "Removed from upgrade sequence."
     fi
   done
   echo "${nodes_with_updates[@]}"
@@ -242,10 +279,10 @@ node_get_running_qemu() {
 node_get_running_count() {
   local node=$1
   lxc_count="$(node_get_running_lxc "$node" | $jq_bin -rc '.|length')"
-  log_verbose "[$node] Running LXC count: $lxc_count"
+  log_prefix "$node" log_verbose "Running LXC count: $lxc_count"
 
   qemu_count="$(node_get_running_qemu "$node" | $jq_bin -rc '.|length')"
-  log_verbose "[$node] Running QEMU count: $qemu_count"
+  log_prefix "$node" log_verbose "Running QEMU count: $qemu_count"
   echo "$((lxc_count + qemu_count))"
 }
 
@@ -275,36 +312,36 @@ node_wait_until_service_running() {
     return 0
   fi
 
-  log_status "[$node] Waiting until service '$service' is running..."
+  log_prefix "$node" log_status "Waiting until service '$service' is running..."
   until node_service_running "$node" "$service"; do
     log_progress
     sleep 1s
   done
   log_progress_end
-  log_success "[$node] Service '$service' started."
+  log_prefix "$node" log_success "Service '$service' started."
 }
 
 node_wait_until_mode() {
   local node=$1
   local target_mode=$2
 
-  log_status "[$node] Waiting until node enters $target_mode mode..."
+  log_prefix "$node" log_status "Waiting until node enters $target_mode mode..."
   mode=$(node_get_mode "$node")
   until [[ "$mode" == "$target_mode" ]]; do
-    log_verbose "[$node] Current mode '$mode' target mode '$target_mode'."
+    log_prefix "$node" log_verbose "Current mode '$mode' target mode '$target_mode'."
     log_progress
     sleep 1s
     mode=$(node_get_mode "$node")
   done
   log_progress_end
-  log_success "[$node] Reached target mode '$target_mode'."
+  log_prefix "$node" log_success "Reached target mode '$target_mode'."
 }
 
 node_wait_until_no_running_guests() {
   local node=$1
 
   if [[ "$allow_running_guests" == true ]]; then
-    log_warning "[$node] Not checking for running QEMU and LXC."
+    log_prefix "$node" log_warning "Not checking for running QEMU and LXC."
     return 0
   fi
 
@@ -313,13 +350,13 @@ node_wait_until_no_running_guests() {
   local -i count
   count="$(node_get_running_count "$node")"
   until [[ $count -eq 0 ]]; do
-    log_verbose "[$node] Number of guests running: $count"
+    log_prefix "$node" log_verbose "Number of guests running: $count"
     log_progress
     sleep 5s
     count="$(node_get_running_count "$node")"
   done
   log_progress_end
-  log_success "[$node] Reached zero running guests."
+  log_prefix "$node" log_success "Reached zero running guests."
 }
 
 node_get_running_tasks() {
@@ -349,44 +386,44 @@ node_wait_all_tasks_completed() {
   local node=$1
 
   if [[ "$allow_running_tasks" == true ]]; then
-    log_warning "[$node] Not checking for running tasks."
+    log_prefix "$node" log_warning "Not checking for running tasks."
     return 0
   fi
 
-  log_status "[$node] Waiting until all cluster tasks have completed..."
+  log_prefix "$node" log_status "Waiting until all cluster tasks have completed..."
   task_count=$(node_get_running_tasks "$node" | $jq_bin -rc '.|length')
   until [[ "$task_count" == "0" ]]; do
-    log_verbose "[$node] Number of running cluster tasks: $task_count"
+    log_prefix "$node" log_verbose "Number of running cluster tasks: $task_count"
     log_progress
     sleep 5s
     task_count=$(node_get_running_tasks "$node" | $jq_bin -rc '.|length')
   done
   log_progress_end
-  log_success "[$node] Cluster reached zero running tasks."
+  log_prefix "$node" log_success "Cluster reached zero running tasks."
 }
 
 node_pre_maintenance_check() {
   local node=$1
 
-  log_status "[$node] Checking that no cluster nodes are currently offline..."
+  log_prefix "$node" log_status "Checking that no cluster nodes are currently offline..."
   count="$(node_get_offline_count "$node")"
   until [[ "$count" == "0" ]]; do
-    log "[$node] At least one cluster node is currently offline. Waiting..."
+    log_prefix "$node" log "At least one cluster node is currently offline. Waiting..."
     sleep 1s
     count="$(node_get_offline_count "$node")"
   done
-  log_success "[$node] All cluster nodes are online."
+  log_prefix "$node" log_success "All cluster nodes are online."
 }
 
 node_enter_maintenance() {
   local node=$1
 
   if [[ "$use_maintenance_mode" == false ]]; then
-    log_warning "[$node] Not setting maintenance mode."
+    log_prefix "$node" log_warning "Not setting maintenance mode."
     return 0
   fi
 
-  log_status "[$node] Enabling maintenance mode."
+  log_prefix "$node" log_status "Enabling maintenance mode."
   # shellcheck disable=SC2016 # $(hostname) is supposed to run in remote host.
   node_ssh_no_op "$node" 'ha-manager crm-command node-maintenance enable $(hostname)' | log_pipe_level 1 "[$node]    "
 
@@ -405,7 +442,7 @@ node_exit_maintenance() {
 
   node_wait_until_service_running "$node" "pve-ha-lrm"
 
-  log_status "[$node] Disabling maintenance mode."
+  log_prefix "$node" log_status "Disabling maintenance mode."
   # shellcheck disable=SC2016 # $(hostname) is supposed to run in remote host.
   node_ssh_no_op "$node" 'ha-manager crm-command node-maintenance disable $(hostname)' | log_pipe_level 1 "[$node]    "
 
@@ -445,44 +482,44 @@ node_reboot() {
   local node=$1
 
   if [[ "$force_reboot" == true ]]; then
-    log_warning "[$node] Forcing Reboot."
+    log_prefix "$node" log_warning "Forcing Reboot."
   elif node_needs_reboot "$node"; then
-    log_warning "[$node] Needs to be rebooted."
+    log_prefix "$node" log_warning "Needs to be rebooted."
   else
-    log_success "[$node] Doesn't need to be rebooted."
+    log_prefix "$node" log_success "Doesn't need to be rebooted."
     return 0
   fi
 
   if [[ $dry_run == true ]]; then
-    log_warning "[$node][NO-OP] Not rebooting."
+    log_prefix "NO-OP" log_prefix "$node" log_warning "Not rebooting."
     return 0
   fi
 
-  log_alert "[$node] Rebooting in 5 seconds! Press CTRL-C to cancel..."
+  log_prefix "$node" log_alert "Rebooting in 5 seconds! Press CTRL-C to cancel..."
   sleep 5s
-  log_status "[$node] Rebooting, logging shutdown dmesg:"
+  log_prefix "$node" log_status "Rebooting, logging shutdown dmesg:"
   node_ssh_no_op "$node" 'reboot' 2>&1 | log_pipe_level 3 "[$node]    " && true
   node_ssh_no_op "$node" 'dmesg -W' 2>&1 | log_pipe_level 0 "[$node]    " && true
 
-  log_status "[$node] Waiting to come back up..."
+  log_prefix "$node" log_status "Waiting to come back up..."
   until is_node_up "$node"; do
     log_progress
   done
   log_progress_end
 
-  log_success "[$node] Rebooted successfully."
+  log_prefix "$node" log_success "Rebooted successfully."
 }
 
 node_post_upgrade() {
   local node=$1
 
   if [[ ${#pkgs_reinstall[@]} -gt 0 ]]; then
-      log_success "[$node] Force reinstalling '${pkgs_reinstall[*]}'..."
+      log_prefix "$node" log_success "Force reinstalling '${pkgs_reinstall[*]}'..."
       node_ssh_no_op "$node" "DEBIAN_FRONTEND=noninteractive apt-get reinstall ${pkgs_reinstall[*]}" | log_pipe_level 0 "[$node]    "
   else
-      log "[$node] No packages to force reinstall."
+      log_prefix "$node" log "No packages to force reinstall."
   fi
-  log_success "[$node] Removing old packages..."
+  log_prefix "$node" log_success "Removing old packages..."
   node_ssh_no_op "$node" "DEBIAN_FRONTEND=noninteractive apt-get autoremove -y && apt-get autoremove -y" | log_pipe_level 0 "[$node]    "
   node_exit_maintenance "$node"
 }
@@ -664,8 +701,9 @@ process_args() {
     shift
   done
 
-  test $verbose -ge 5 && set -x
-  test $verbose -ge 4 && ssh_options+=("-v")
+  test $verbose -ge 5 && ssh_options+=("-v")
+  test $verbose -ge 6 && set -x
+  test $verbose -ge 7 && ssh_options+=("-v")
 
   ssh_options+=("-l $ssh_user")
   [[ "$ssh_key_auth_only" == true ]] && ssh_options+=("-o PasswordAuthentication=no")
@@ -766,12 +804,12 @@ main() {
   log_success "Using '${upgrade_nodes[*]}' as node upgrade sequence."
 
   for node in "${upgrade_nodes[@]}"; do
-    log_success "[$node] Starting upgrade."
+    log_prefix "$node" log_success "Starting upgrade."
     node_pre_upgrade "$node"
     node_upgrade "$node"
     node_reboot "$node"
     node_post_upgrade "$node"
-    log_success "[$node] Successfully upgraded."
+    log_prefix "$node" log_success "Successfully upgraded."
   done
 
   log_success "Nodes '${upgrade_nodes[*]}' successfully upgraded."
