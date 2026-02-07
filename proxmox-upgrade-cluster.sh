@@ -3,6 +3,8 @@
 shopt -s extglob
 
 set -o errexit -o nounset -o pipefail
+set -o errtrace -o functrace
+shopt -s inherit_errexit
 
 program_name="$(basename "$0")"
 ssh_user="${PVE_UPGRADE_SSH_USER:-root}"
@@ -147,6 +149,46 @@ log_progress_end() {
   fi
 }
 
+wait_all_succeed() {
+  local cmd=${1?}
+  local -n args=${2?}
+
+  local -A pids
+
+  for arg in "${args[@]}"; do
+    LOG_PREFIX="$(test $verbose -ge 4 && echo "[${BASHPID}]${LOG_PREFIX:-}" )" \
+      "$cmd" "$arg" &
+    local pid=$!
+    pids[$pid]="$cmd $arg"
+    log_prefix $pid log_prefix "${FUNCNAME[0]}" log_debug3 "Started Job: \`$cmd $arg\`"
+  done
+
+  local -i failed_count=0
+  local -a running_jobs
+  readarray running_jobs < <(jobs -p)
+
+  until [[ ${#running_jobs[@]} -eq 0 ]]; do
+    log_prefix "${FUNCNAME[0]}" log_debug3 "Number of jobs running: ${#running_jobs[@]}"
+
+    local -i cmd_exit
+    # wait -p cmd_exit -n "$pid"
+    set +o nounset
+    wait -p pid -n
+    local cmd_exit=$?
+    local cmd="${pids[$pid]}"
+    set -o nounset
+    log_prefix $pid log_prefix "${FUNCNAME[0]}" log_debug3 "Finished Job: \`$cmd\` exit: $cmd_exit"
+
+    if [[ $cmd_exit -gt 0 ]]; then
+      (( failed_count += 1 ))
+    fi
+
+    readarray running_jobs < <(jobs -p)
+  done
+
+  return $failed_count
+}
+
 local_ssh() {
   # shellcheck disable=2068
   command ssh $@
@@ -183,23 +225,21 @@ node_pvesh() {
 
 is_node_up() {
   local node=$1
+  # Default timeout to 5 seconds
   local timeout=${5:-2}
   node_ssh "$node" whoami "-oConnectTimeout=$timeout" | log_pipe_level 3 "[$node]"
+  local -i node_status=$?
+  if [[ $node_status -eq 0 ]]; then
+    log_prefix "$node" log_verbose "Node is up."
+  else
+    log_prefix "$node" log_alert "Node is down."
+  fi
+  return $node_status
 }
 
 all_nodes_up() {
   local -n nodes=$1
-  local all_up=true
-  for node in "${nodes[@]}"; do
-    if is_node_up "$node"; then
-      log_prefix "$node" log_verbose "Node is up."
-    else
-      log_prefix "$node" log_alert "Node is down."
-      all_up=false
-    fi
-  done
-
-  if [[ "$all_up" == false ]]; then return 1; fi
+  wait_all_succeed is_node_up nodes
 }
 
 get_cluster_nodes() {
@@ -217,24 +257,23 @@ node_has_updates() {
   local node=$1
   updates="$(node_ssh "$node" 'DEBIAN_FRONTEND=noninteractive apt-get -qq -s upgrade')"
   echo "$updates" | log_pipe_level 2 "[$node]    "
-  if [[ -z "$updates" ]]; then
-    return 1
-  else
-    log_debug "$updates"
-    return 0
-  fi
+  # return 1 if $updates is empty
+  [[ ! -z "$updates" ]]
 }
 
 is_node_proxmox() {
   local node=$1
-  node_ssh "$node" 'hash pvesh' >/dev/null
+  node_ssh "$node" 'hash pvesh' | log_pipe_level 4 "[$node]"
+  local -i node_status=$?
+  if [[ $node_status -ne 0 ]]; then
+    log_prefix "$node" log_alert "Node is not proxmox."
+  fi
+  return $node_status
 }
 
-check_if_nodes_are_proxmox() {
+all_nodes_proxmox() {
   local -n nodes=$1
-  for node in "${nodes[@]}"; do
-    is_node_proxmox "$node"
-  done
+  wait_all_succeed is_node_proxmox nodes
 }
 
 get_nodes_upgradeable() {
@@ -259,9 +298,7 @@ node_apt_update() {
 
 apt_update_nodes() {
   local -n nodes=$1
-  for node in "${nodes[@]}"; do
-    node_apt_update "$node"
-  done
+  wait_all_succeed node_apt_update nodes
 }
 
 node_get_running_lxc() {
@@ -367,19 +404,20 @@ node_get_running_tasks() {
 
 node_is_running_task() {
   local node=$1
+  local -i task_count
   task_count=$(node_get_running_tasks "$node" | $jq_bin -rc '.|length')
-  if [[ "$task_count" != "0" ]]; then
-    return 1 # false
+  log_prefix "${FUNCNAME[0]}" log_prefix "$node" log_debug "Task Count: $task_count"
+  if [[ -n $task_count || $task_count -gt 0 ]]; then
+    log_prefix "$node" log_info "Running a task. Task Count: $task_count"
+    return 1
+  else
+    return 0
   fi
 }
 
 any_nodes_running_tasks() {
   local -n nodes=$1
-  for node in "${nodes[@]}"; do
-    if node_is_running_task "$node"; then
-        return 1
-    fi
-  done
+  wait_all_succeed node_is_running_task nodes
 }
 
 node_wait_all_tasks_completed() {
