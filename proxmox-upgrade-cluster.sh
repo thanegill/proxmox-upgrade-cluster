@@ -569,6 +569,16 @@ EXAMPLE
 EOF
 }
 
+error_on_no_arg() {
+  local arg=${1?}
+  local value=${2:-}
+  if [[ -z $value ]]; then
+    log_error "ERROR: No arg passed for '$arg'."
+    log_error "See --help for usage."
+    exit 1
+  fi
+}
+
 process_args() {
   if [[ $# -eq 0 ]]; then
     log_error "No arguments passed."
@@ -580,18 +590,22 @@ process_args() {
     case "${1?}" in
       --cluster-node|-c)
         shift
+        error_on_no_arg "--cluster-node|-c" "${1:-}"
         cluster_node="$1"
         ;;
       --node|-n)
         shift
+        error_on_no_arg "--node|-n" "${1:-}"
         cluster_nodes+=("$1")
         ;;
       --ssh-user|-u)
         shift
+        error_on_no_arg "--ssh-user" "${1:-}"
         ssh_user="$1"
         ;;
       --ssh-opt|-o)
         shift
+        error_on_no_arg "--ssh-opt" "${1:-}"
         ssh_options+=("$1")
         ;;
       --ssh-allow-password-auth)
@@ -605,6 +619,7 @@ process_args() {
         ;;
       --pkg-reinstall)
         shift
+        error_on_no_arg "--pkg-reinstall" "${1:-}"
         pkgs_reinstall+=("$1")
         ;;
       --force-upgrade)
@@ -624,6 +639,7 @@ process_args() {
         ;;
       --jq-bin)
         shift
+        error_on_no_arg "--jq-bin" "${1:-}"
         jq_bin="$1"
         ;;
       --verbose)
