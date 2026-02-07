@@ -2,12 +2,11 @@
 
 shopt -s extglob
 
-set -o errexit -o pipefail
+set -o errexit -o nounset -o pipefail
 
 program_name="$(basename "$0")"
 ssh_user="${PVE_UPGRADE_SSH_USER:-root}"
 ssh_key_auth_only=true
-use_cluster_node=false
 cluster_node_use_ip=false
 force_upgrade=false
 force_reboot=false
@@ -19,8 +18,10 @@ jq_bin="jq"
 
 declare cluster_node
 declare -na cluster_nodes
+cluster_nodes=()
 declare -na upgrade_nodes
-declare -a ssh_options
+upgrade_nodes=()
+declare -a ssh_options=()
 
 declare -i verbose=0
 dry_run=false
@@ -42,7 +43,7 @@ log_pipe_level() {
 }
 
 log_level() {
-  local -i level=$1
+  local -i level=${1?}
   shift
   echo -e "$@" | log_pipe_level "$level"
 }
@@ -63,7 +64,7 @@ log_debug() {
 }
 
 log_color() {
-  local -i color=$1
+  local -i color=${1?}
   shift
   log_level 0 "\033[0;${color}m${*}\033[0m"
 }
@@ -134,9 +135,9 @@ node_ssh_no_op() {
 }
 
 node_pvesh() {
-  local node=$1
-  local path=$2
-  local args=$3
+  local node=${1?}
+  local path=${2?}
+  local args=${3:-}
   json=$(node_ssh "$node" "pvesh get $path $args --output-form=json")
   log_level 3 "[$node] JSON output:"
   echo "$json" | $jq_bin | log_pipe_level 3 "[$node]"
@@ -307,7 +308,9 @@ node_wait_until_no_running_guests() {
     return 0
   fi
 
-  log_status "[$node] Waiting until all guests are migrated..."
+  log_prefix "$node" log_status "Waiting until all guests are migrated..."
+
+  local -i count
   count="$(node_get_running_count "$node")"
   until [[ $count -eq 0 ]]; do
     log_verbose "[$node] Number of guests running: $count"
@@ -573,11 +576,10 @@ process_args() {
     exit 1
   fi;
 
-  while true; do
-    case "$1" in
+  while [[ $# -ne 0 ]]; do
+    case "${1?}" in
       --cluster-node|-c)
         shift
-        use_cluster_node=true
         cluster_node="$1"
         ;;
       --node|-n)
@@ -635,7 +637,7 @@ process_args() {
         exit 0
         ;;
       -*)
-        log_error "$program_name ERROR: unknown option '$1'"
+        log_error "$program_name ERROR: unknown option '${1?}'"
         log_error "Use $program_name --help for help with command-line options."
         exit 1
         ;;
@@ -652,14 +654,14 @@ process_args() {
   ssh_options+=("-l $ssh_user")
   [[ "$ssh_key_auth_only" == true ]] && ssh_options+=("-o PasswordAuthentication=no")
 
-  if [[ "$use_cluster_node" = true && ${#cluster_nodes[@]} -ne 0 ]]; then
-    log_error "ERROR: Only one of --cluster-node, or --nodes can be used."
+  if [[ -z ${cluster_node:-} && ${#cluster_nodes[@]} -eq 0 ]]; then
+    log_error "ERROR: One of --cluster-node, or --nodes must be used."
     log_error "See --help for usage."
     exit 1
   fi
 
-  if [[ "$use_cluster_node" == false && ${#cluster_nodes[@]} -eq 0 ]]; then
-    log_error "ERROR: One of --cluster-node, or --nodes must be used."
+  if [[ -n ${cluster_node:-} && ${#cluster_nodes[@]} -ne 0 ]]; then
+    log_error "ERROR: Only one of --cluster-node, or --nodes can be used."
     log_error "See --help for usage."
     exit 1
   fi
@@ -669,13 +671,13 @@ main() {
   process_args "$@"
 
   # Exit here if sourcing for tests
-  if [[ -n $ONLY_SOURCE_FUNCTIONS ]]; then return 0; fi
+  if [[ -n ${ONLY_SOURCE_FUNCTIONS:-} ]]; then return 0; fi
 
   if [[ "$dry_run" == true ]]; then
     log_warning "Running in dry run mode."
   fi
 
-  if [[ "$use_cluster_node" = true ]]; then
+  if [[ -n ${cluster_node:-} ]]; then
     log_status "Getting all cluster nodes from node '$cluster_node'..."
     if ! is_node_up "$cluster_node"; then
       log_error "$cluster_node node is currently down."
