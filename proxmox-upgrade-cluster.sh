@@ -77,7 +77,7 @@ log_prefix() {
   LOG_PREFIX+="[$prefix]" "$@"
 }
 
-log() {
+log_info() {
   # Alias for log_level 0
   log_level 0 "$*"
 }
@@ -446,7 +446,7 @@ node_pre_maintenance_check() {
   log_prefix "$node" log_status "Checking that no cluster nodes are currently offline..."
   count="$(node_get_offline_count "$node")"
   until [[ "$count" == "0" ]]; do
-    log_prefix "$node" log "At least one cluster node is currently offline. Waiting..."
+    log_prefix "$node" log_info "At least one cluster node is currently offline. Waiting..."
     sleep 1s
     count="$(node_get_offline_count "$node")"
   done
@@ -555,7 +555,7 @@ node_post_upgrade() {
       log_prefix "$node" log_success "Force reinstalling '${pkgs_reinstall[*]}'..."
       node_ssh_no_op "$node" "DEBIAN_FRONTEND=noninteractive apt-get reinstall ${pkgs_reinstall[*]}" | log_pipe_level 0 "[$node]    "
   else
-      log_prefix "$node" log "No packages to force reinstall."
+      log_prefix "$node" log_info "No packages to force reinstall."
   fi
   log_prefix "$node" log_success "Removing old packages..."
   node_ssh_no_op "$node" "DEBIAN_FRONTEND=noninteractive apt-get autoremove -y && apt-get autoremove -y" | log_pipe_level 0 "[$node]    "
