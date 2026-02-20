@@ -397,28 +397,26 @@ node_wait_until_no_running_guests() {
   log_prefix "$node" log_success "Reached zero running guests."
 }
 
-node_get_running_tasks() {
+node_number_of_running_tasks() {
   local node=$1
   # shellcheck disable=SC2016 # $(hostname) is supposed to run in remote host.
-  node_pvesh "$node" 'nodes/$(hostname)/tasks' '--source=active'
+  node_pvesh "$node" 'nodes/$(hostname)/tasks' '--source=active' | $jq_bin -rc '.|length'
 }
 
-node_is_running_task() {
+node_not_running_task() {
   local node=$1
   local -i task_count
-  task_count=$(node_get_running_tasks "$node" | $jq_bin -rc '.|length')
+  task_count=$(node_number_of_running_tasks "$node")
   log_prefix "${FUNCNAME[0]}" log_prefix "$node" log_debug "Task Count: $task_count"
-  if [[ -n $task_count || $task_count -gt 0 ]]; then
+  if [[ $task_count -gt 0 ]]; then
     log_prefix "$node" log_info "Running a task. Task Count: $task_count"
-    return 1
-  else
-    return 0
   fi
+  return $task_count
 }
 
 any_nodes_running_tasks() {
   local -n nodes=$1
-  wait_all_succeed node_is_running_task nodes
+  wait_all_succeed node_not_running_task nodes
 }
 
 node_wait_all_tasks_completed() {
@@ -430,12 +428,13 @@ node_wait_all_tasks_completed() {
   fi
 
   log_prefix "$node" log_status "Waiting until all cluster tasks have completed..."
-  task_count=$(node_get_running_tasks "$node" | $jq_bin -rc '.|length')
-  until [[ "$task_count" == "0" ]]; do
+  local -i task_count
+  task_count=$(node_number_of_running_tasks "$node")
+  until [[ $task_count -eq 0 ]]; do
     log_prefix "$node" log_verbose "Number of running cluster tasks: $task_count"
     log_progress
     sleep 5s
-    task_count=$(node_get_running_tasks "$node" | $jq_bin -rc '.|length')
+    task_count=$(node_number_of_running_tasks "$node")
   done
   log_progress_end
   log_prefix "$node" log_success "Cluster reached zero running tasks."
@@ -812,7 +811,7 @@ main() {
     log_warning "Not checking for running cluster tasks."
   else
     log_status "Checking if any nodes currently have tasks running..."
-    if any_nodes_running_tasks cluster_nodes; then
+    if ! any_nodes_running_tasks cluster_nodes; then
       log_error "At least one node is currently running tasks."
       exit 1
     else
