@@ -254,14 +254,6 @@ get_cluster_nodes() {
   fi
 }
 
-node_has_updates() {
-  local node=$1
-  updates="$(node_ssh "$node" 'DEBIAN_FRONTEND=noninteractive apt-get -qq -s upgrade')"
-  echo "$updates" | log_pipe_level 2 "[$node]    "
-  # return 1 if $updates is empty
-  [[ ! -z "$updates" ]]
-}
-
 is_node_proxmox() {
   local node=$1
   node_ssh "$node" 'hash pvesh' | log_pipe_level 4 "[$node]"
@@ -277,9 +269,18 @@ all_nodes_proxmox() {
   wait_all_succeed is_node_proxmox nodes
 }
 
+node_has_updates() {
+  local node=$1
+  updates="$(node_ssh "$node" 'DEBIAN_FRONTEND=noninteractive apt-get -qq -s upgrade')"
+  echo "$updates" | log_pipe_level 2 "[$node]    "
+  # return 1 if $updates is empty
+  [[ ! -z "$updates" ]]
+}
+
 get_nodes_upgradeable() {
   local -n nodes=$1
   local -a nodes_with_updates
+
   for node in "${nodes[@]}"; do
     if node_has_updates "$node"; then
       log_prefix "$node" log_success "Updates available."
@@ -444,12 +445,15 @@ node_pre_maintenance_check() {
   local node=$1
 
   log_prefix "$node" log_status "Checking that no cluster nodes are currently offline..."
+  local -i count
   count="$(node_get_offline_count "$node")"
-  until [[ "$count" == "0" ]]; do
-    log_prefix "$node" log_info "At least one cluster node is currently offline. Waiting..."
+  until [[ "$count" -eq 0 ]]; do
+    log_prefix "$node" log_verbose "At least one cluster node is currently offline. Waiting..."
+    log_progress
     sleep 1s
     count="$(node_get_offline_count "$node")"
   done
+  log_progress_end
   log_prefix "$node" log_success "All cluster nodes are online."
 }
 
@@ -552,14 +556,25 @@ node_post_upgrade() {
   local node=$1
 
   if [[ ${#pkgs_reinstall[@]} -gt 0 ]]; then
-      log_prefix "$node" log_success "Force reinstalling '${pkgs_reinstall[*]}'..."
-      node_ssh_no_op "$node" "DEBIAN_FRONTEND=noninteractive apt-get reinstall ${pkgs_reinstall[*]}" | log_pipe_level 0 "[$node]    "
+    log_prefix "$node" log_success "Force reinstalling '${pkgs_reinstall[*]}'..."
+    node_ssh_no_op "$node" "DEBIAN_FRONTEND=noninteractive apt-get reinstall ${pkgs_reinstall[*]}" | log_pipe_level 0 "[$node]    "
   else
-      log_prefix "$node" log_info "No packages to force reinstall."
+    log_prefix "$node" log_info "No packages to force reinstall."
   fi
   log_prefix "$node" log_success "Removing old packages..."
   node_ssh_no_op "$node" "DEBIAN_FRONTEND=noninteractive apt-get autoremove -y && apt-get autoremove -y" | log_pipe_level 0 "[$node]    "
   node_exit_maintenance "$node"
+}
+
+node_run_update_sequence() {
+  local node=$1
+
+  log_prefix "$node" log_success "Starting upgrade."
+  node_pre_upgrade "$node"
+  node_upgrade "$node"
+  node_reboot "$node"
+  node_post_upgrade "$node"
+  log_prefix "$node" log_success "Successfully upgraded."
 }
 
 usage() {
@@ -839,12 +854,7 @@ main() {
   log_success "Using '${upgrade_nodes[*]}' as node upgrade sequence."
 
   for node in "${upgrade_nodes[@]}"; do
-    log_prefix "$node" log_success "Starting upgrade."
-    node_pre_upgrade "$node"
-    node_upgrade "$node"
-    node_reboot "$node"
-    node_post_upgrade "$node"
-    log_prefix "$node" log_success "Successfully upgraded."
+    node_run_update_sequence "$node"
   done
 
   log_success "Nodes '${upgrade_nodes[*]}' successfully upgraded."
