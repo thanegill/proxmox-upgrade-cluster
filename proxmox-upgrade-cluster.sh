@@ -79,7 +79,7 @@ log_prefix() {
 
 log_info() {
   # Alias for log_level 0
-  log_level 0 "$*"
+  log_level 0 "$@"
 }
 
 log_verbose() {
@@ -181,6 +181,7 @@ wait_all_succeed() {
 
     if [[ $cmd_exit -gt 0 ]]; then
       (( failed_count += 1 ))
+      log_prefix $pid log_prefix "${FUNCNAME[0]}" log_error "Job Error: \`$cmd\` exit: $cmd_exit"
     fi
 
     readarray running_jobs < <(jobs -p)
@@ -344,7 +345,7 @@ node_wait_until_service_running() {
   local node=$1
   local service=$2
 
-  # Exit early with out logging if running
+  # Exit early without logging if running.
   if node_service_running "$node" "$service"; then
     return 0
   fi
