@@ -313,7 +313,7 @@ node_get_running_qemu() {
   node_pvesh "$node" 'nodes/$(hostname)/qemu' | $jq_bin -rc '[.[] | select(.status != "stopped")]'
 }
 
-node_get_running_count() {
+node_get_running_guest_count() {
   local node=$1
   lxc_count="$(node_get_running_lxc "$node" | $jq_bin -rc '.|length')"
   log_prefix "$node" log_verbose "Running LXC count: $lxc_count"
@@ -378,19 +378,19 @@ node_wait_until_no_running_guests() {
   local node=$1
 
   if [[ "$allow_running_guests" == true ]]; then
-    log_prefix "$node" log_warning "Not checking for running QEMU and LXC."
+    log_prefix "$node" log_warning "Not checking for running guests."
     return 0
   fi
 
   log_prefix "$node" log_status "Waiting until all guests are migrated..."
 
   local -i count
-  count="$(node_get_running_count "$node")"
+  count="$(node_get_running_guest_count "$node")"
   until [[ $count -eq 0 ]]; do
     log_prefix "$node" log_verbose "Number of guests running: $count"
     log_progress
     sleep 5s
-    count="$(node_get_running_count "$node")"
+    count="$(node_get_running_guest_count "$node")"
   done
   log_progress_end
   log_prefix "$node" log_success "Reached zero running guests."
