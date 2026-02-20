@@ -762,9 +762,6 @@ process_args() {
 main() {
   process_args "$@"
 
-  # Exit here if sourcing for tests
-  if [[ -n ${ONLY_SOURCE_FUNCTIONS:-} ]]; then return 0; fi
-
   if [[ "$dry_run" == true ]]; then
     log_warning "Running in dry run mode."
   fi
@@ -852,5 +849,8 @@ main() {
 
   log_success "Nodes '${upgrade_nodes[*]}' successfully upgraded."
 }
+
+# Exit here if sourcing for tests
+if [[ -n ${ONLY_SOURCE_FUNCTIONS:-} ]]; then return 0; fi
 
 main "$@"
