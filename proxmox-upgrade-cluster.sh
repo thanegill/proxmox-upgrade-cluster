@@ -218,10 +218,8 @@ node_pvesh() {
   local node=${1?}
   local path=${2?}
   local args=${3:-}
-  json=$(node_ssh "$node" "pvesh get $path $args --output-form=json")
   log_prefix "$node" log_debug2 "JSON output:"
-  echo "$json" | $jq_bin | log_pipe_level 3 "[$node]"
-  echo "$json"
+  node_ssh "$node" "pvesh get $path $args --output-form=json" | tee >($jq_bin | log_pipe_level 3 "[$node]")
 }
 
 is_node_up() {
@@ -246,7 +244,6 @@ all_nodes_up() {
 get_cluster_nodes() {
   # Get list of all cluster nodes from a node
   local node=$1
-  local -a nodes
   if [[ "$cluster_node_use_ip" == true ]]; then
     node_pvesh "$node" "cluster/status" | $jq_bin -rc '[.[] | select(.type == "node") | .ip] | join(" ")'
   else
