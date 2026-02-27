@@ -314,11 +314,15 @@ node_get_running_qemu() {
 
 node_get_running_guest_count() {
   local node=$1
+
+  local -i lxc_count
   lxc_count="$(node_get_running_lxc "$node" | $jq_bin -rc '.|length')"
   log_prefix "$node" log_verbose "Running LXC count: $lxc_count"
 
+  local -i qemu_count
   qemu_count="$(node_get_running_qemu "$node" | $jq_bin -rc '.|length')"
   log_prefix "$node" log_verbose "Running QEMU count: $qemu_count"
+
   echo "$((lxc_count + qemu_count))"
 }
 
