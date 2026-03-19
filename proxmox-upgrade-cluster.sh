@@ -171,7 +171,6 @@ wait_all_succeed() {
     log_prefix "${FUNCNAME[0]}" log_debug3 "Number of jobs running: ${#running_jobs[@]}"
 
     local -i cmd_exit
-    # wait -p cmd_exit -n "$pid"
     set +o nounset
     wait -p pid -n
     local cmd_exit=$?
@@ -229,9 +228,9 @@ is_node_up() {
   node_ssh "$node" whoami "-oConnectTimeout=$timeout" | log_pipe_level 3 "[$node]"
   local -i node_status=$?
   if [[ $node_status -eq 0 ]]; then
-    log_prefix "$node" log_verbose "Node is up."
+    log_prefix "$node" log_debug "Node is up."
   else
-    log_prefix "$node" log_alert "Node is down."
+    log_prefix "$node" log_debug "Node is down."
   fi
   return $node_status
 }
