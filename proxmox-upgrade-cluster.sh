@@ -269,7 +269,7 @@ all_nodes_proxmox() {
 node_has_updates() {
   local node=$1
   updates="$(node_ssh "$node" 'DEBIAN_FRONTEND=noninteractive apt-get -qq -s upgrade')"
-  echo "$updates" | log_pipe_level 2 "[$node]    "
+  echo "$updates" | log_pipe_level 2 "[$node][apt]"
   # return 1 if $updates is empty
   [[ ! -z "$updates" ]]
 }
@@ -292,7 +292,7 @@ get_nodes_upgradeable() {
 
 node_apt_update() {
   local node=$1
-  node_ssh "$node" 'DEBIAN_FRONTEND=noninteractive apt-get update' | log_pipe_level 1 "[$node]    "
+  node_ssh "$node" 'DEBIAN_FRONTEND=noninteractive apt-get update' | log_pipe_level 1 "[$node][apt]"
 }
 
 apt_update_nodes() {
@@ -509,7 +509,7 @@ node_pre_upgrade() {
 
 node_upgrade() {
   local node=$1
-  node_ssh_no_op "$node" 'DEBIAN_FRONTEND=noninteractive apt-get dist-upgrade -y' | log_pipe_level 0 "[$node]    "
+  node_ssh_no_op "$node" 'DEBIAN_FRONTEND=noninteractive apt-get dist-upgrade -y' | log_pipe_level 0 "[$node][apt]"
 }
 
 node_needs_reboot() {
@@ -558,12 +558,12 @@ node_post_upgrade() {
 
   if [[ ${#pkgs_reinstall[@]} -gt 0 ]]; then
     log_prefix "$node" log_success "Force reinstalling '${pkgs_reinstall[*]}'..."
-    node_ssh_no_op "$node" "DEBIAN_FRONTEND=noninteractive apt-get reinstall ${pkgs_reinstall[*]}" | log_pipe_level 0 "[$node]    "
+    node_ssh_no_op "$node" "DEBIAN_FRONTEND=noninteractive apt-get reinstall ${pkgs_reinstall[*]}" | log_pipe_level 0 "[$node][apt]"
   else
     log_prefix "$node" log_info "No packages to force reinstall."
   fi
   log_prefix "$node" log_success "Removing old packages..."
-  node_ssh_no_op "$node" "DEBIAN_FRONTEND=noninteractive apt-get autoremove -y && apt-get autoremove -y" | log_pipe_level 0 "[$node]    "
+  node_ssh_no_op "$node" "DEBIAN_FRONTEND=noninteractive apt-get autoremove -y && apt-get autoremove -y" | log_pipe_level 0 "[$node][apt]"
   node_exit_maintenance "$node"
 }
 
