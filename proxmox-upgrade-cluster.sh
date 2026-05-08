@@ -1,5 +1,3 @@
-#!/usr/bin/env bash
-
 shopt -s extglob
 
 set -o errexit -o nounset -o pipefail
@@ -19,10 +17,8 @@ pkgs_reinstall=()
 jq_bin="jq"
 
 declare cluster_node
-declare -na cluster_nodes
-cluster_nodes=()
-declare -na upgrade_nodes
-upgrade_nodes=()
+declare -a cluster_nodes=()
+declare -a upgrade_nodes=()
 declare -a ssh_options=()
 
 declare -i verbose=0
