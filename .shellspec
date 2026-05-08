@@ -1,3 +1,2 @@
 --format=progress
 --shell=bash
---env ONLY_SOURCE_FUNCTIONS=true

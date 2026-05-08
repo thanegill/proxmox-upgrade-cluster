@@ -856,7 +856,7 @@ main() {
   log_success "Nodes '${upgrade_nodes[*]}' successfully upgraded."
 }
 
-# Exit here if sourcing for tests
-if [[ -n ${ONLY_SOURCE_FUNCTIONS:-} ]]; then return 0; fi
+# Exit here if sourced by shellspec
+${__SOURCED__:+return}
 
 main "$@"
