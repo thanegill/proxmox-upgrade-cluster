@@ -174,6 +174,23 @@ EXAMPLE
 [2026-01-26 17:26:19] No nodes need updates. Exiting.
 ```
 
+## Testing
+
+Tests are written using [ShellSpec](https://shellspec.info/) and run via Nix development shell:
+
+```shell
+nix develop -c shellspec spec/
+```
+
+Run a specific test file or tag:
+
+```shell
+nix develop -c shellspec spec/logging_spec.sh
+nix develop -c shellspec spec/node_functions_spec.sh:@1-1
+```
+
+Tests mock all SSH and external commands. No Proxmox cluster is required to run the suite.
+
 ## License
 
 This script is provided as-is under the GNU v3 License. Use at your own risk.
