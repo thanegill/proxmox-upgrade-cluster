@@ -52,15 +52,15 @@ log_pipe_level() {
 
   # Log milliseconds when verbose >= 3 for high-resolution debugging
   if [[ $verbose -ge 3 ]]; then
-    local rt_sec="${EPOCHREALTIME%%.*}"
-    local rt_usec="${EPOCHREALTIME##*.}"
     while IFS= read -r line; do
+      local rt_sec="${EPOCHREALTIME%%.*}"
+      local rt_usec="${EPOCHREALTIME##*.}"
       [ -z "$line" ] && continue
       printf "[%(%F %T)T.%s]$prefix %s\n" "$rt_sec" "$rt_usec" "$line" > $log_output
     done
   else
-    local rt_sec="${EPOCHREALTIME%%.*}"
     while IFS= read -r line; do
+      local rt_sec="${EPOCHREALTIME%%.*}"
       [ -z "$line" ] && continue
       printf "[%(%F %T)T]$prefix %s\n" "$rt_sec" "$line" > $log_output
     done
