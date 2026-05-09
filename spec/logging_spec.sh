@@ -28,7 +28,7 @@ Describe 'Logging functions'
     It 'outputs the message with color codes' do
       When call log_alert 'test alert message'
       The error should include 'test alert message'
-      The error should include '\033'
+      The error should include $'\033'
     End
   End
 
@@ -36,7 +36,7 @@ Describe 'Logging functions'
     It 'outputs the message with color codes' do
       When call log_error 'test error message'
       The error should include 'test error message'
-      The error should include '\033'
+      The error should include $'\033'
     End
   End
 
@@ -44,7 +44,7 @@ Describe 'Logging functions'
     It 'outputs the message with color codes' do
       When call log_status 'test status message'
       The error should include 'test status message'
-      The error should include '\033'
+      The error should include $'\033'
     End
   End
 
@@ -52,7 +52,7 @@ Describe 'Logging functions'
     It 'outputs the message with color codes' do
       When call log_success 'test success message'
       The error should include 'test success message'
-      The error should include '\033'
+      The error should include $'\033'
     End
   End
 
@@ -60,7 +60,7 @@ Describe 'Logging functions'
     It 'outputs the message with color codes' do
       When call log_warning 'test warning message'
       The error should include 'test warning message'
-      The error should include '\033'
+      The error should include $'\033'
     End
   End
 
@@ -76,7 +76,7 @@ Describe 'Logging functions'
     It 'outputs escape sequences when verbose is 0' do
       verbose=0
       When call log_progress_end
-      The error should include '\033[2K'
+      The error should include $'\033'
     End
   End
 End

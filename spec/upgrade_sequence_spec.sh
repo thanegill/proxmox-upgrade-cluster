@@ -2,6 +2,7 @@ Describe 'node_enter_maintenance'
   Include proxmox-upgrade-cluster.sh
 
   It 'skips when use_maintenance_mode is false' do
+    verbose=1
     use_maintenance_mode=false
     Mock node_ssh_no_op
       echo 'skipped'
@@ -9,9 +10,11 @@ Describe 'node_enter_maintenance'
 
     When call node_enter_maintenance 'pve1'
     The status should be success
+    The error should include 'Not setting maintenance mode'
   End
 
   It 'calls ssh_no_op and waits for maintenance mode' do
+    verbose=1
     use_maintenance_mode=true
     dry_run=false
     Mock node_ssh_no_op
@@ -23,9 +26,12 @@ Describe 'node_enter_maintenance'
 
     When call node_enter_maintenance 'pve1'
     The status should be success
+    The output should include 'in maintenance'
+    The error should include 'Enabling maintenance mode'
   End
 
   It 'skips wait_until_mode when dry_run is true' do
+    verbose=1
     use_maintenance_mode=true
     dry_run=true
     Mock node_ssh_no_op
@@ -36,6 +42,7 @@ Describe 'node_enter_maintenance'
 
     When call node_enter_maintenance 'pve1'
     The status should be success
+    The error should include 'Enabling maintenance mode'
   End
 End
 
@@ -43,6 +50,7 @@ Describe 'node_exit_maintenance'
   Include proxmox-upgrade-cluster.sh
 
   It 'skips when use_maintenance_mode is false' do
+    verbose=1
     use_maintenance_mode=false
 
     When call node_exit_maintenance 'pve1'
@@ -50,6 +58,7 @@ Describe 'node_exit_maintenance'
   End
 
   It 'calls service wait, ssh_no_op, and mode wait' do
+    verbose=1
     use_maintenance_mode=true
     dry_run=false
     Mock node_wait_until_service_running
@@ -64,9 +73,13 @@ Describe 'node_exit_maintenance'
 
     When call node_exit_maintenance 'pve1'
     The status should be success
+    The output should include 'service running'
+    The output should include 'online'
+    The error should include 'Disabling maintenance mode'
   End
 
   It 'skips wait_until_mode when dry_run is true' do
+    verbose=1
     use_maintenance_mode=true
     dry_run=true
     Mock node_wait_until_service_running
@@ -80,6 +93,8 @@ Describe 'node_exit_maintenance'
 
     When call node_exit_maintenance 'pve1'
     The status should be success
+    The output should include 'service running'
+    The error should include 'Disabling maintenance mode'
   End
 End
 
@@ -87,13 +102,15 @@ Describe 'node_reboot'
   Include proxmox-upgrade-cluster.sh
 
   It 'returns success when neither force_reboot nor needs_reboot' do
+    verbose=1
     force_reboot=false
     Mock node_needs_reboot
-      return 1
+      exit 1
     End
 
     When call node_reboot 'pve1'
     The status should be success
+    The error should include "Doesn't need to be rebooted"
   End
 
   It 'reboots when force_reboot is true' do

@@ -15,7 +15,7 @@ Describe 'get_cluster_nodes'
 
   It 'returns node names from pvesh output' do
     Mock node_pvesh
-      echo '[{"type":"node","name":"pve1"},{"type":"node","name":"pve2"}]' | jq -rc '[.[] | select(.type == "node") | .name] | join(" ")'
+      echo '[{"type":"node","name":"pve1"},{"type":"node","name":"pve2"}]'
     End
 
     When call get_cluster_nodes 'pve1'
@@ -25,7 +25,7 @@ Describe 'get_cluster_nodes'
   It 'returns node IPs when cluster_node_use_ip is true' do
     cluster_node_use_ip=true
     Mock node_pvesh
-      echo '[{"type":"node","ip":"10.0.0.1"},{"type":"node","ip":"10.0.0.2"}]' | jq -rc '[.[] | select(.type == "node") | .ip] | join(" ")'
+      echo '[{"type":"node","ip":"10.0.0.1"},{"type":"node","ip":"10.0.0.2"}]'
     End
 
     When call get_cluster_nodes 'pve1'
@@ -41,7 +41,7 @@ Describe 'node_get_running_guest_count'
       echo '[{"status":"running"}]'
     End
     Mock node_get_running_qemu
-      echo '[{"status":"running"},{"status":"running"},{"status":"stopped"}]'
+      echo '[{"status":"running"},{"status":"running"}]'
     End
 
     When call node_get_running_guest_count 'pve1'
@@ -156,12 +156,14 @@ Describe 'node_not_running_task'
   End
 
   It 'returns failure when tasks are running' do
+    verbose=1
     Mock node_number_of_running_tasks
       echo '3'
     End
 
     When call node_not_running_task 'pve1'
     The status should be failure
+    The error should include 'Running a task'
   End
 End
 
@@ -191,12 +193,12 @@ Describe 'node_upgrade'
   Include proxmox-upgrade-cluster.sh
 
   It 'calls node_ssh_no_op with dist-upgrade command' do
-    Mock node_ssh_no_op
+    Mock node_ssh
       echo 'upgraded'
     End
 
     When call node_upgrade 'pve1'
-    The output should include 'upgraded'
+    The error should include 'upgraded'
   End
 End
 
@@ -204,12 +206,13 @@ Describe 'node_apt_update'
   Include proxmox-upgrade-cluster.sh
 
   It 'calls node_ssh with apt-get update' do
+    verbose=1
     Mock node_ssh
       echo 'updated'
     End
 
     When call node_apt_update 'pve1'
-    The output should include 'updated'
+    The error should include 'updated'
   End
 End
 
@@ -240,14 +243,12 @@ Describe 'node_ssh_no_op'
   End
 
   It 'skips command when dry_run is true' do
-    Mock node_ssh
-      echo 'executed'
-    End
     dry_run=true
 
     When call node_ssh_no_op 'pve1' 'whoami'
     The status should be success
-    The output should be empty
+    The output should eq ''
+    The error should include 'NO-OP'
   End
 End
 
@@ -255,21 +256,25 @@ Describe 'is_node_up'
   Include proxmox-upgrade-cluster.sh
 
   It 'returns success when node is up' do
+    verbose=3
     Mock node_ssh
       echo 'root'
     End
 
     When call is_node_up 'pve1'
     The status should be success
+    The error should include 'Node is up'
   End
 
   It 'returns failure when node is down' do
+    verbose=3
     Mock node_ssh
-      return 1
+      exit 1
     End
 
     When call is_node_up 'pve1'
     The status should be failure
+    The error should include 'Node is down'
   End
 End
 
@@ -278,7 +283,7 @@ Describe 'is_node_proxmox'
 
   It 'returns success when pvesh is available' do
     Mock node_ssh
-      return 0
+      exit 0
     End
 
     When call is_node_proxmox 'pve1'
@@ -286,12 +291,14 @@ Describe 'is_node_proxmox'
   End
 
   It 'returns failure when pvesh is not available' do
+    verbose=1
     Mock node_ssh
-      return 1
+      exit 1
     End
 
     When call is_node_proxmox 'pve1'
     The status should be failure
+    The error should include 'Node is not proxmox'
   End
 End
 

@@ -25,22 +25,6 @@ declare -i verbose=0
 dry_run=false
 log_output="/dev/stderr"
 
-log_timestamp_ms() {
-    local prefix="$1"
-    while IFS= read -r line; do
-        [ -z "$line" ] && continue
-        printf "[%(%F %T)T.%s]$prefix %s\n" -1 ${EPOCHREALTIME/./ } "$line"
-    done
-}
-
-log_timestamp() {
-    local prefix="$1"
-    while IFS= read -r line; do
-        [ -z "$line" ] && continue
-        printf "[%(%F %T)T]$prefix %s\n" -1 "$line"
-    done
-}
-
 log_pipe_level() {
   # pipe to $log_output with prefix and optional timestamp
   local -i level=${1?}
@@ -66,11 +50,20 @@ log_pipe_level() {
     local prefix="[$level_name]${prefix}"
   fi
 
-  # Subsecond timestamp if verbose >= 3
+  # Log milliseconds when verbose >= 3 for high-resolution debugging
   if [[ $verbose -ge 3 ]]; then
-    cat - | log_timestamp_ms "$prefix" > $log_output
+    local rt_sec="${EPOCHREALTIME%%.*}"
+    local rt_usec="${EPOCHREALTIME##*.}"
+    while IFS= read -r line; do
+      [ -z "$line" ] && continue
+      printf "[%(%F %T)T.%s]$prefix %s\n" "$rt_sec" "$rt_usec" "$line" > $log_output
+    done
   else
-    cat - | log_timestamp "$prefix" > $log_output
+    local rt_sec="${EPOCHREALTIME%%.*}"
+    while IFS= read -r line; do
+      [ -z "$line" ] && continue
+      printf "[%(%F %T)T]$prefix %s\n" "$rt_sec" "$line" > $log_output
+    done
   fi
 
 }
