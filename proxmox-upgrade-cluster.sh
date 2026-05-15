@@ -1,3 +1,5 @@
+#!/usr/bin/env bash
+
 shopt -s extglob
 
 set -o errexit -o nounset -o pipefail
