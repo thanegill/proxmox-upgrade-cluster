@@ -17,8 +17,10 @@ Describe 'proxmox-upgrade-cluster.sh'
       The variable verbose should eq 0
     End
 
-    It 'has log_output default to /dev/stderr' do
-      The variable log_output should eq '/dev/stderr'
+    It 'defines log_output as a function that writes to stderr' do
+      When call declare -f log_output
+      The output should include 'cat -'
+      The output should include '&2'
     End
 
     It 'has jq_bin default to jq' do
@@ -26,21 +28,30 @@ Describe 'proxmox-upgrade-cluster.sh'
     End
   End
 
-  Describe 'ssh_options default' do
-    It 'has empty ssh_options array' do
-      The length of variable ssh_options should eq 0
+  Describe 'default arrays are initialized as empty' do
+    It 'has empty ssh_options by default' do
+      process_args() { echo "${#ssh_options[@]}"; }
+      When call process_args '--cluster-node' 'pve1'
+      The output should eq '0'
     End
 
-    It 'has empty pkgs_reinstall array' do
-      The length of variable pkgs_reinstall should eq 0
+    It 'has empty pkgs_reinstall by default' do
+      node_upgrade() { echo "${#pkgs_reinstall[@]}"; }
+      When call node_upgrade 'pve1'
+      The output should eq '0'
     End
 
-    It 'has empty cluster_nodes array' do
-      The length of variable cluster_nodes should eq 0
+    It 'has empty cluster_nodes by default' do
+      upgrade_sequence() { echo "${#cluster_nodes[@]}"; }
+      verbose=0
+      When call upgrade_sequence '--node' 'pve1'
+      The output should eq '0'
     End
 
-    It 'has empty upgrade_nodes array' do
-      The length of variable upgrade_nodes should eq 0
+    It 'has empty upgrade_nodes by default' do
+      all_nodes_up() { echo "${#upgrade_nodes[@]}"; }
+      When call all_nodes_up 'pve1' 'pve2'
+      The output should eq '0'
     End
   End
 End

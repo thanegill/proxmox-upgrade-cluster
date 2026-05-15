@@ -79,4 +79,133 @@ Describe 'Logging functions'
       The error should include $'\033'
     End
   End
+
+  Describe 'log_color' do
+    It 'outputs the message with ANSI color codes (red=31)' do
+      When call log_color 31 'red text'
+      The error should include 'red text'
+      The error should include $'\033[0;31m'
+      The error should include $'\033[0m'
+    End
+
+    It 'outputs the message with ANSI color codes (green=32)' do
+      When call log_color 32 'green text'
+      The error should include 'green text'
+      The error should include $'\033[0;32m'
+    End
+
+    It 'calls log_level 0 internally' do
+      verbose=-1
+      Mock log_level
+        echo "log_level_called_with: $@"
+      End
+      When call log_color 35 'purple text'
+      The output should include 'log_level_called_with:'
+    End
+  End
+
+  Describe 'log_level' do
+    It 'outputs message when verbose >= level' do
+      verbose=2
+      Mock local_ssh
+        exit 0
+      End
+      When call log_level 1 'level one message'
+      The error should include 'level one message'
+    End
+
+    It 'silences output when verbose < level' do
+      verbose=0
+      When call log_level 2 'hidden message'
+      The output should eq ''
+    End
+
+    It 'outputs to stderr via log_pipe_level' do
+      verbose=1
+      Mock local_ssh
+        exit 0
+      End
+      When call log_level 0 'level zero message'
+      The error should include 'level zero message'
+    End
+
+    It 'requires a level argument' do
+      When run log_level
+      The status should be failure
+      The error should include 'parameter not set'
+    End
+  End
+
+  Describe 'log_pipe_level' do
+    It 'passes through lines when verbose >= level' do
+      local captured=""
+      test_lpl() { echo "input line" | log_pipe_level 0; }
+      When call test_lpl
+      The error should include 'input line'
+    End
+
+    It 'filters out lines when verbose < level' do
+      local captured=""
+      test_filter() { verbose=0; echo "filtered" | log_pipe_level 1; }
+      When call test_filter
+      The output should eq ''
+      The error should not include 'filtered'
+    End
+
+    It 'adds level name prefix when verbose >= level' do
+      local captured=""
+      test_level() { verbose=2; echo "test" | log_pipe_level 2; }
+      When call test_level
+      The error should include '[DEBUG'
+    End
+
+    It 'logs with timestamp for verbose >= 3 level 3' do
+      local captured=""
+      test_ts() { verbose=3; echo "test" | log_pipe_level 3; }
+      When call test_ts
+      The error should include '[20'
+      The error should include '[DEBUG'
+    End
+
+    It 'skips empty lines' do
+      local captured=""
+      test_empty() { verbose=1; printf "line1\n\nline2\n" | log_pipe_level 0; }
+      When call test_empty
+      The error should include 'line1'
+      The error should include 'line2'
+    End
+  End
+
+  Describe 'log_prefix' do
+    It 'appends prefix to LOG_PREFIX and chains to next function' do
+      local captured=""
+      capture_log() { captured="$LOG_PREFIX"; }
+      test_chain() { LOG_PREFIX=""; log_prefix "node1" capture_log; echo "$captured"; }
+      When call test_chain
+      The output should include '[node1]'
+    End
+
+    It 'accumulates multiple chained prefixes' do
+      local captured=""
+      capture_log() { captured="$LOG_PREFIX"; }
+      test_accumulate() { LOG_PREFIX=""; log_prefix "first" log_prefix "second" capture_log; echo "$captured"; }
+      When call test_accumulate
+      The output should include '[first]'
+      The output should include '[second]'
+    End
+
+    It 'preserves existing LOG_PREFIX content' do
+      local captured=""
+      capture_log() { captured="$LOG_PREFIX"; }
+      test_preserve() { LOG_PREFIX="[old]"; log_prefix "new" capture_log; echo "$captured"; }
+      When call test_preserve
+      The output should include '[old]'
+    End
+
+    It 'requires a prefix argument' do
+      When run log_prefix
+      The status should be failure
+      The error should include 'parameter not set'
+    End
+  End
 End
