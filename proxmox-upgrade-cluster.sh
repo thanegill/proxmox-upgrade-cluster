@@ -172,31 +172,22 @@ wait_all_succeed() {
     LOG_PREFIX="$(test $verbose -ge 4 && echo "[${BASHPID}]${LOG_PREFIX:-}" )" \
       "$cmd" "$arg" &
     local pid=$!
-    pids[$pid]="$cmd $arg"
+    pids["$pid"]="$cmd $arg"
     log_prefix $pid log_prefix "${FUNCNAME[0]}" log_debug3 "Started Job: \`$cmd $arg\`"
   done
 
   local -i failed_count=0
-  local -a running_jobs
-  readarray running_jobs < <(jobs -p)
 
-  until [[ ${#running_jobs[@]} -eq 0 ]]; do
-    log_prefix "${FUNCNAME[0]}" log_debug3 "Number of jobs running: ${#running_jobs[@]}"
-
-    local -i cmd_exit
-    set +o nounset
-    wait -p pid -n
+  for pid in "${!pids[@]}"; do
+    wait "$pid"
     local cmd_exit=$?
-    local cmd="${pids[$pid]}"
-    set -o nounset
-    log_prefix $pid log_prefix "${FUNCNAME[0]}" log_debug3 "Finished Job: \`$cmd\` exit: $cmd_exit"
+    local cmd="${pids["$pid"]}"
+    log_prefix "$pid" log_prefix "${FUNCNAME[0]}" log_debug3 "Finished Job: \`$cmd\` exit: $cmd_exit"
 
     if [[ $cmd_exit -gt 0 ]]; then
       (( failed_count += 1 ))
-      log_prefix $pid log_prefix "${FUNCNAME[0]}" log_error "Job Error: \`$cmd\` exit: $cmd_exit"
+      log_prefix "$pid" log_prefix "${FUNCNAME[0]}" log_error "Job Error: \`$cmd\` exit: $cmd_exit"
     fi
-
-    readarray running_jobs < <(jobs -p)
   done
 
   return $failed_count
