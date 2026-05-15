@@ -23,7 +23,10 @@ declare -a ssh_options=()
 
 declare -i verbose=0
 dry_run=false
-log_output="/dev/stderr"
+
+log_output() {
+  cat - >&2
+}
 
 wait_sleep() {
   # Default poll interval for waiting loops; override in tests with mock.
@@ -32,7 +35,7 @@ wait_sleep() {
 }
 
 log_pipe_level() {
-  # pipe to $log_output with prefix and optional timestamp
+  # pipe to log_output with prefix and optional timestamp
   local -i level=${1?}
   local prefix_arg="${2:-}"
 
@@ -62,13 +65,13 @@ log_pipe_level() {
       local rt_sec="${EPOCHREALTIME%%.*}"
       local rt_usec="${EPOCHREALTIME##*.}"
       [ -z "$line" ] && continue
-      printf "[%(%F %T)T.%s]$prefix %s\n" "$rt_sec" "$rt_usec" "$line" > $log_output
+      printf "[%(%F %T)T.%s]$prefix %s\n" "$rt_sec" "$rt_usec" "$line" | log_output
     done
   else
     while IFS= read -r line; do
       local rt_sec="${EPOCHREALTIME%%.*}"
       [ -z "$line" ] && continue
-      printf "[%(%F %T)T]$prefix %s\n" "$rt_sec" "$line" > $log_output
+      printf "[%(%F %T)T]$prefix %s\n" "$rt_sec" "$line" | log_output
     done
   fi
 
@@ -145,7 +148,7 @@ log_warning() {
 log_progress() {
   # Only log progress when no verbosity
   if [[ $verbose -eq 0 ]]; then
-    echo -n '.' > $log_output
+    echo -n '.' | log_output
   fi
 }
 
@@ -154,7 +157,7 @@ log_progress_end() {
   # Only log progress when no verbosity
   if [[ $verbose -eq 0 ]]; then
     # Erase line, move cursor to start of line.
-    printf "\033[2K\r" > $log_output
+    printf "\033[2K\r" | log_output
   fi
 }
 
