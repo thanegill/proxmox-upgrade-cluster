@@ -212,7 +212,7 @@ node_ssh() {
   log_prefix "$host" log_debug "Running command '$cmd'"
 
   # shellcheck disable=SC2048,2086 # Need to expand ssh_options with all whitespace.
-  local_ssh "$host" ${ssh_options[*]} $* "$cmd" > /dev/stdout 2> >(log_prefix "$node" log_pipe_level 3 "[stderr]")
+  local_ssh "$host" ${ssh_options[*]} $* "$cmd" > /dev/stdout 2> >(log_prefix "$host" log_pipe_level 3 "[stderr]")
 }
 
 node_ssh_no_op() {
