@@ -25,6 +25,12 @@ declare -i verbose=0
 dry_run=false
 log_output="/dev/stderr"
 
+wait_sleep() {
+  # Default poll interval for waiting loops; override in tests with mock.
+  local duration=${1?}
+  sleep "$duration"
+}
+
 log_pipe_level() {
   # pipe to $log_output with prefix and optional timestamp
   local -i level=${1?}
@@ -357,7 +363,7 @@ node_wait_until_service_running() {
   log_prefix "$node" log_status "Waiting until service '$service' is running..."
   until node_service_running "$node" "$service"; do
     log_progress
-    sleep 1s
+    wait_sleep 1s
   done
   log_progress_end
   log_prefix "$node" log_success "Service '$service' started."
@@ -372,7 +378,7 @@ node_wait_until_mode() {
   until [[ "$mode" == "$target_mode" ]]; do
     log_prefix "$node" log_verbose "Current mode '$mode' target mode '$target_mode'."
     log_progress
-    sleep 1s
+    wait_sleep 1s
     mode=$(node_get_mode "$node")
   done
   log_progress_end
@@ -394,7 +400,7 @@ node_wait_until_no_running_guests() {
   until [[ $count -eq 0 ]]; do
     log_prefix "$node" log_verbose "Number of guests running: $count"
     log_progress
-    sleep 5s
+    wait_sleep 5s
     count="$(node_get_running_guest_count "$node")"
   done
   log_progress_end
@@ -437,7 +443,7 @@ node_wait_all_tasks_completed() {
   until [[ $task_count -eq 0 ]]; do
     log_prefix "$node" log_verbose "Number of running cluster tasks: $task_count"
     log_progress
-    sleep 5s
+    wait_sleep 5s
     task_count=$(node_number_of_running_tasks "$node")
   done
   log_progress_end
@@ -453,7 +459,7 @@ node_pre_maintenance_check() {
   until [[ "$count" -eq 0 ]]; do
     log_prefix "$node" log_verbose "At least one cluster node is currently offline. Waiting..."
     log_progress
-    sleep 1s
+    wait_sleep 1s
     count="$(node_get_offline_count "$node")"
   done
   log_progress_end
@@ -541,7 +547,7 @@ node_reboot() {
   fi
 
   log_prefix "$node" log_alert "Rebooting in 5 seconds! Press CTRL-C to cancel..."
-  sleep 5s
+  wait_sleep 5s
   log_prefix "$node" log_status "Rebooting, logging shutdown dmesg:"
   node_ssh_no_op "$node" 'reboot' 2>&1 | log_pipe_level 3 "[$node]    " && true
   node_ssh_no_op "$node" 'dmesg -W' 2>&1 | log_pipe_level 0 "[$node]    " && true
