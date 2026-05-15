@@ -4,25 +4,26 @@ set -o errexit -o nounset -o pipefail
 set -o errtrace -o functrace
 shopt -s inherit_errexit
 
+declare program_name
 program_name="$(basename "$0")"
-ssh_user="${PVE_UPGRADE_SSH_USER:-root}"
-ssh_key_auth_only=true
-cluster_node_use_ip=false
-force_upgrade=false
-force_reboot=false
-use_maintenance_mode=true
-allow_running_guests=false
-allow_running_tasks=false
-pkgs_reinstall=()
-jq_bin="jq"
+declare ssh_user="${PVE_UPGRADE_SSH_USER:-root}"
+declare ssh_key_auth_only=true
+declare cluster_node_use_ip=false
+declare force_upgrade=false
+declare force_reboot=false
+declare dry_run=false
+declare use_maintenance_mode=true
+declare allow_running_guests=false
+declare allow_running_tasks=false
+declare jq_bin="jq"
+declare -i verbose=0
 
 declare cluster_node
+declare -a pkgs_reinstall=()
 declare -a cluster_nodes=()
 declare -a upgrade_nodes=()
 declare -a ssh_options=()
 
-declare -i verbose=0
-dry_run=false
 
 log_output() {
   cat - >&2
