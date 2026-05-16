@@ -183,6 +183,44 @@ Describe 'strict mode tests' do
 End
 ```
 
+### Parameters Directive Limitations
+
+ShellSpec 0.28.1 has limitations with the `Parameters` directive:
+
+- **Function name substitution does not work** — `<func_name>` in a command position is treated literally, not substituted
+- **Space-containing values break parsing** — parameters with spaces (e.g., `'test alert message'`) cause "command not found" errors
+- **Variable capture from mocks doesn't persist** — mocked functions run in subprocesses; variable assignments are lost
+
+For these cases, use separate `It` blocks instead of Parameters:
+
+```bash
+# WRONG - Parameters with function names and spaces
+Describe 'color-coded logs' do
+  Parameters
+    func_name | message
+    log_alert | test alert message
+  End
+  It 'works' do
+    When call "<func_name>" '<message>'   # FAILS: executes literal <func_name>
+  End
+End
+
+# RIGHT - separate It blocks for each variant
+Describe 'log_alert' do
+  It 'outputs the message with color codes' do
+    When call log_alert 'test alert message'
+    The error should include 'test alert message'
+  End
+End
+
+Describe 'log_error' do
+  It 'outputs the message with color codes' do
+    When call log_error 'test error message'
+    The error should include 'test error message'
+  End
+End
+```
+
 ## Testing Arrays and Variables
 
 Arrays modified inside functions don't persist across subprocesses. Use inline overrides:
