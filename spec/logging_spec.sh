@@ -67,8 +67,15 @@ Describe 'Logging functions'
   Describe 'log_progress' do
     It 'outputs a dot when verbose is 0' do
       verbose=0
-      When call log_progress
+      wait_sleep() { :; }
+      When call log_progress '1s'
       The error should include '.'
+    End
+
+    It 'requires a duration argument' do
+      When run log_progress
+      The status should be failure
+      The error should include 'parameter not set'
     End
   End
 

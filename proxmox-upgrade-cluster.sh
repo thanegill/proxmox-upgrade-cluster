@@ -149,10 +149,12 @@ log_warning() {
 }
 
 log_progress() {
+  local duration=${1?}
   # Only log progress when no verbosity
   if [[ $verbose -eq 0 ]]; then
     echo -n '.' | log_output
   fi
+  wait_sleep "$duration"
 }
 
 log_progress_end() {
@@ -354,8 +356,7 @@ node_wait_until_service_running() {
 
   log_prefix "$node" log_status "Waiting until service '$service' is running..."
   until node_service_running "$node" "$service"; do
-    log_progress
-    wait_sleep 1s
+    log_progress 1s
   done
   log_progress_end
   log_prefix "$node" log_success "Service '$service' started."
@@ -369,8 +370,7 @@ node_wait_until_mode() {
   mode=$(node_get_mode "$node")
   until [[ "$mode" == "$target_mode" ]]; do
     log_prefix "$node" log_verbose "Current mode '$mode' target mode '$target_mode'."
-    log_progress
-    wait_sleep 1s
+    log_progress 1s
     mode=$(node_get_mode "$node")
   done
   log_progress_end
@@ -391,8 +391,7 @@ node_wait_until_no_running_guests() {
   count="$(node_get_running_guest_count "$node")"
   until [[ $count -eq 0 ]]; do
     log_prefix "$node" log_verbose "Number of guests running: $count"
-    log_progress
-    wait_sleep 5s
+    log_progress 5s
     count="$(node_get_running_guest_count "$node")"
   done
   log_progress_end
@@ -434,8 +433,7 @@ node_wait_all_tasks_completed() {
   task_count=$(node_number_of_running_tasks "$node")
   until [[ $task_count -eq 0 ]]; do
     log_prefix "$node" log_verbose "Number of running cluster tasks: $task_count"
-    log_progress
-    wait_sleep 5s
+    log_progress 5s
     task_count=$(node_number_of_running_tasks "$node")
   done
   log_progress_end
@@ -450,8 +448,7 @@ node_pre_maintenance_check() {
   count="$(node_get_offline_count "$node")"
   until [[ "$count" -eq 0 ]]; do
     log_prefix "$node" log_verbose "At least one cluster node is currently offline. Waiting..."
-    log_progress
-    wait_sleep 1s
+    log_progress 1s
     count="$(node_get_offline_count "$node")"
   done
   log_progress_end
@@ -546,7 +543,7 @@ node_reboot() {
 
   log_prefix "$node" log_status "Waiting to come back up..."
   until is_node_up "$node"; do
-    log_progress
+    log_progress 1s
   done
   log_progress_end
 
