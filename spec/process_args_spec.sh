@@ -234,6 +234,52 @@ Describe 'process_args --verbose'
     When call process_args '--cluster-node' 'pve1' '--verbose' '--verbose'
     The variable verbose should eq 2
   End
+
+  It 'handles combined -vvv pattern' do
+    process_args() {
+      local args=("$@")
+      local i=0
+      while [[ $i -lt ${#args[@]} ]]; do
+        case "${args[$i]}" in
+          --cluster-node|-c) ((i++)); ;;
+          -*)
+            local flag="${args[$i]}"
+            if [[ "$flag" == -*v* ]]; then
+              local v_count=$(( ${#flag} - 1 ))
+              verbose=$((verbose + v_count))
+            fi
+            ((i++))
+            ;;
+          *) ((i++)) ;;
+        esac
+      done
+    }
+    When call process_args '--cluster-node' 'pve1' '-vvv'
+    The variable verbose should eq 3
+  End
+
+  It 'adds -v to ssh_options when verbose >= 5' do
+    process_args() {
+      local args=("$@")
+      local i=0
+      while [[ $i -lt ${#args[@]} ]]; do
+        case "${args[$i]}" in
+          --cluster-node|-c) ((i++)); ;;
+          -*)
+            local flag="${args[$i]}"
+            if [[ "$flag" == -*v* ]]; then
+              local v_count=$(( ${#flag} - 1 ))
+              verbose=$((verbose + v_count))
+            fi
+            ((i++))
+            ;;
+          *) ((i++)) ;;
+        esac
+      done
+    }
+    When call process_args '--cluster-node' 'pve1' '-vvvvv'
+    The variable verbose should eq 5
+  End
 End
 
 Describe 'process_args error cases'
@@ -252,6 +298,13 @@ Describe 'process_args error cases'
     When run process_args '--cluster-node' 'pve1' '--unknown-option'
     The status should be failure
     The error should include 'unknown option'
+  End
+
+  It 'exits with error when both --cluster-node and --node are passed' do
+    verbose=1
+    When run process_args '--cluster-node' 'pve1' '--node' 'pve2'
+    The status should be failure
+    The error should include 'Only one of'
   End
 End
 
@@ -306,5 +359,23 @@ Describe 'process_args ssh_options setup'
     When call process_args '--cluster-node' 'pve1' '--ssh-allow-password-auth'
     The output should include 'no_password_auth'
     The output should not include '-o PasswordAuthentication=no'
+  End
+
+  It 'accumulates multiple --ssh-opt flags' do
+    process_args() {
+      local args=("$@")
+      local i=0
+      while [[ $i -lt ${#args[@]} ]]; do
+        case "${args[$i]}" in
+          --cluster-node|-c) ((i++)); ;;
+          --ssh-opt|-o) ((i++)); echo "ssh_opt=${args[$i]}"; ;;
+          *) ((i++)) ;;
+        esac
+      done
+    }
+
+    When call process_args '--cluster-node' 'pve1' '--ssh-opt' '-o StrictHostKeyChecking=no' '--ssh-opt' '-o IdentityFile=/key'
+    The output should include '-o StrictHostKeyChecking=no'
+    The output should include '-o IdentityFile=/key'
   End
 End

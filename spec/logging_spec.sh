@@ -176,6 +176,66 @@ Describe 'Logging functions'
     End
   End
 
+  Describe 'log_debug2' do
+    It 'outputs message when verbose >= 3' do
+      verbose=3
+      When call log_debug2 'debug2 message'
+      The error should include 'debug2 message'
+      The error should include '[DEBUG2'
+    End
+
+    It 'silences output when verbose < 3' do
+      verbose=2
+      When call log_debug2 'hidden debug2'
+      The output should eq ''
+    End
+  End
+
+  Describe 'log_debug3' do
+    It 'outputs message when verbose >= 4' do
+      verbose=4
+      When call log_debug3 'debug3 message'
+      The error should include 'debug3 message'
+      The error should include '[DEBUG3'
+    End
+
+    It 'silences output when verbose < 4' do
+      verbose=3
+      When call log_debug3 'hidden debug3'
+      The output should eq ''
+    End
+  End
+
+  Describe 'log_pipe_level with prefix_arg' do
+    It 'uses custom prefix when provided' do
+      local captured=""
+      test_prefix() { echo "test data" | log_pipe_level 0 "myprefix"; }
+      When call test_prefix
+      The error should include 'myprefix'
+      The error should include 'test data'
+    End
+
+    It 'uses fallback level number when verbose level not in map' do
+      local captured=""
+      test_fallback() { verbose=9; echo "fallback" | log_pipe_level 9; }
+      When call test_fallback
+      The error should include '[9]'
+      The error should include 'fallback'
+    End
+  End
+
+  Describe 'log_prefix with no chained function' do
+    It 'still appends to LOG_PREFIX when called without additional args' do
+      test_no_chain() {
+        LOG_PREFIX=""
+        log_prefix "solo"
+        echo "$LOG_PREFIX"
+      }
+      When call test_no_chain
+      The output should include '[solo]'
+    End
+  End
+
   Describe 'log_prefix' do
     It 'appends prefix to LOG_PREFIX and chains to next function' do
       local captured=""

@@ -54,4 +54,44 @@ Describe 'proxmox-upgrade-cluster.sh'
       The output should eq '0'
     End
   End
+
+  Describe 'wait_sleep' do
+    It 'calls sleep with default 1 second' do
+      test_wait_sleep() {
+        local sleep_called=0
+        sleep() { sleep_called=1; }
+        wait_sleep '1s'
+        echo "$sleep_called"
+      }
+      When call test_wait_sleep
+      The output should eq '1'
+    End
+
+    It 'accepts custom duration argument' do
+      test_wait_sleep_custom() {
+        local sleep_arg=""
+        sleep() { sleep_arg="$1"; }
+        wait_sleep '0.5s'
+        echo "$sleep_arg"
+      }
+      When call test_wait_sleep_custom
+      The output should eq '0.5s'
+    End
+
+    It 'exits with error when no duration provided' do
+      When run wait_sleep
+      The status should be failure
+      The error should include 'parameter not set'
+    End
+  End
+
+  Describe 'log_output' do
+    It 'writes output to stderr directly' do
+      Mock log_output
+        echo "stderr test" >&2
+      End
+      When call log_output 'test data'
+      The error should include 'stderr test'
+    End
+  End
 End

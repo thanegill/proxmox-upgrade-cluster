@@ -119,6 +119,23 @@ Describe 'node_reboot'
     The error should include "Needs to be rebooted"
     The error should include 'Not rebooting'
   End
+
+  It 'reboots when needs_reboot is true and force_reboot is false' do
+    force_reboot=false
+    dry_run=false
+    verbose=1
+    node_needs_reboot() { return 0; }
+    wait_sleep() { :; }
+    node_ssh_no_op() { echo 'rebooting'; }
+    is_node_up() { return 0; }
+
+    When call node_reboot 'pve1'
+    The status should be success
+    The error should include "Needs to be rebooted"
+    The error should include 'Rebooting in 5 seconds'
+    The error should include 'Waiting to come back up'
+    The error should include 'Rebooted successfully'
+  End
 End
 
 Describe 'node_post_upgrade'
@@ -266,6 +283,16 @@ Describe 'get_nodes_upgradeable'
     When call get_nodes_upgradeable cluster_nodes
     The output should include 'pve1'
     The error should include 'Updates available'
+  End
+
+  It 'returns empty string when called with empty array' do
+    Mock node_has_updates
+      exit 0
+    End
+    cluster_nodes=()
+
+    When call get_nodes_upgradeable cluster_nodes
+    The output should eq ''
   End
 End
 
@@ -503,5 +530,23 @@ Describe 'main'
     When run test_main_node_array
     The status should be success
     The error should include 'No nodes need updates'
+  End
+
+  It 'logs warning when maintenance mode is disabled' do
+    test_main_no_maintenance() {
+      process_args() { :; }
+      verbose=0; dry_run=false; cluster_node='pve1'; get_cluster_nodes() { echo 'pve1'; }
+      Mock local_ssh
+        exit 0
+      End
+      is_node_up() { return 0; }; is_node_proxmox() { return 0; }; all_nodes_up() { return 0; }
+      node_get_offline_count() { echo '0'; }; any_nodes_running_tasks() { :; }; apt_update_nodes() { :; }
+      get_nodes_upgradeable() { echo ''; }
+      use_maintenance_mode=false
+      main
+    }
+    When run test_main_no_maintenance
+    The status should be success
+    The error should include 'Not using maintenance mode'
   End
 End
