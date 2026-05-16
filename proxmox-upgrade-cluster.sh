@@ -201,8 +201,8 @@ local_ssh() {
 }
 
 node_ssh() {
-  local host=$1; shift
-  local cmd=$1; shift
+  local host=${1?}; shift
+  local cmd=${1?}; shift
   log_prefix "$host" log_debug "Running command '$cmd'"
 
   # shellcheck disable=SC2048,2086 # Need to expand ssh_options with all whitespace.
@@ -210,8 +210,8 @@ node_ssh() {
 }
 
 node_ssh_no_op() {
-  local node=$1; shift
-  local cmd=$1; shift
+  local node=${1?}; shift
+  local cmd=${1?}; shift
   if [[ "$dry_run" = true ]]; then
     log_prefix "NO-OP" log_prefix "$node" log_warning " Not running '$cmd'"
     return 0
@@ -228,7 +228,7 @@ node_pvesh() {
 }
 
 is_node_up() {
-  local node=$1
+  local node=${1?}
   # Default timeout to 5 seconds
   local timeout=${5:-2}
   node_ssh "$node" whoami "-oConnectTimeout=$timeout" | log_pipe_level 3 "[$node]"
@@ -242,13 +242,13 @@ is_node_up() {
 }
 
 all_nodes_up() {
-  local -n nodes=$1
+  local -n nodes=${1?}
   wait_all_succeed is_node_up nodes
 }
 
 get_cluster_nodes() {
   # Get list of all cluster nodes from a node
-  local node=$1
+  local node=${1?}
   if [[ "$cluster_node_use_ip" == true ]]; then
     node_pvesh "$node" "cluster/status" | $jq_bin -rc '[.[] | select(.type == "node") | .ip] | join(" ")'
   else
@@ -257,7 +257,7 @@ get_cluster_nodes() {
 }
 
 is_node_proxmox() {
-  local node=$1
+  local node=${1?}
   node_ssh "$node" 'hash pvesh' | log_pipe_level 4 "[$node]"
   local -i node_status=$?
   if [[ $node_status -ne 0 ]]; then
@@ -267,12 +267,12 @@ is_node_proxmox() {
 }
 
 all_nodes_proxmox() {
-  local -n nodes=$1
+  local -n nodes=${1?}
   wait_all_succeed is_node_proxmox nodes
 }
 
 node_has_updates() {
-  local node=$1
+  local node=${1?}
   updates="$(node_ssh "$node" 'DEBIAN_FRONTEND=noninteractive apt-get -qq -s upgrade')"
   echo "$updates" | log_pipe_level 2 "[$node][apt]"
   # return 1 if $updates is empty
@@ -280,7 +280,7 @@ node_has_updates() {
 }
 
 get_nodes_upgradeable() {
-  local -n nodes=$1
+  local -n nodes=${1?}
   local -a nodes_with_updates
 
   for node in "${nodes[@]}"; do
@@ -296,29 +296,29 @@ get_nodes_upgradeable() {
 }
 
 node_apt_update() {
-  local node=$1
+  local node=${1?}
   node_ssh "$node" 'DEBIAN_FRONTEND=noninteractive apt-get update' | log_pipe_level 1 "[$node][apt]"
 }
 
 apt_update_nodes() {
-  local -n nodes=$1
+  local -n nodes=${1?}
   wait_all_succeed node_apt_update nodes
 }
 
 node_get_running_lxc() {
-  local node=$1
+  local node=${1?}
   # shellcheck disable=SC2016 # $(hostname) is supposed to run in remote host.
   node_pvesh "$node" 'nodes/$(hostname)/lxc' | $jq_bin -rc '[.[] | select(.status != "stopped")]'
 }
 
 node_get_running_qemu() {
-  local node=$1
+  local node=${1?}
   # shellcheck disable=SC2016 # $(hostname) is supposed to run in remote host.
   node_pvesh "$node" 'nodes/$(hostname)/qemu' | $jq_bin -rc '[.[] | select(.status != "stopped")]'
 }
 
 node_get_running_guest_count() {
-  local node=$1
+  local node=${1?}
 
   local -i lxc_count
   lxc_count="$(node_get_running_lxc "$node" | $jq_bin -rc '.|length')"
@@ -332,25 +332,25 @@ node_get_running_guest_count() {
 }
 
 node_get_offline_count() {
-  local node=$1
+  local node=${1?}
   node_pvesh "$node" 'cluster/ha/status/manager_status' | $jq_bin -rc '[.manager_status.node_status[] | select(. != "online")] | length'
 }
 
 node_get_mode() {
-  local node=$1
+  local node=${1?}
   hostname=$(node_ssh "$node" hostname)
   node_pvesh "$node" 'cluster/ha/status/manager_status' | $jq_bin -rc ".manager_status.node_status.$hostname"
 }
 
 node_service_running() {
-  local node=$1
-  local service=$2
+  local node=${1?}
+  local service=${2?}
   [[ "$(node_ssh "$node" "systemctl is-active $service")" == "active" ]]
 }
 
 node_wait_until_service_running() {
-  local node=$1
-  local service=$2
+  local node=${1?}
+  local service=${2?}
 
   # Exit early without logging if running.
   if node_service_running "$node" "$service"; then
@@ -367,8 +367,8 @@ node_wait_until_service_running() {
 }
 
 node_wait_until_mode() {
-  local node=$1
-  local target_mode=$2
+  local node=${1?}
+  local target_mode=${2?}
 
   log_prefix "$node" log_status "Waiting until node enters $target_mode mode..."
   mode=$(node_get_mode "$node")
@@ -383,7 +383,7 @@ node_wait_until_mode() {
 }
 
 node_wait_until_no_running_guests() {
-  local node=$1
+  local node=${1?}
 
   if [[ "$allow_running_guests" == true ]]; then
     log_prefix "$node" log_warning "Not checking for running guests."
@@ -405,13 +405,13 @@ node_wait_until_no_running_guests() {
 }
 
 node_number_of_running_tasks() {
-  local node=$1
+  local node=${1?}
   # shellcheck disable=SC2016 # $(hostname) is supposed to run in remote host.
   node_pvesh "$node" 'nodes/$(hostname)/tasks' '--source=active' | $jq_bin -rc '.|length'
 }
 
 node_not_running_task() {
-  local node=$1
+  local node=${1?}
   local -i task_count
   task_count=$(node_number_of_running_tasks "$node")
   log_prefix "${FUNCNAME[0]}" log_prefix "$node" log_debug "Task Count: $task_count"
@@ -422,12 +422,12 @@ node_not_running_task() {
 }
 
 any_nodes_running_tasks() {
-  local -n nodes=$1
+  local -n nodes=${1?}
   wait_all_succeed node_not_running_task nodes
 }
 
 node_wait_all_tasks_completed() {
-  local node=$1
+  local node=${1?}
 
   if [[ "$allow_running_tasks" == true ]]; then
     log_prefix "$node" log_warning "Not checking for running tasks."
@@ -448,7 +448,7 @@ node_wait_all_tasks_completed() {
 }
 
 node_pre_maintenance_check() {
-  local node=$1
+  local node=${1?}
 
   log_prefix "$node" log_status "Checking that no cluster nodes are currently offline..."
   local -i count
@@ -464,7 +464,7 @@ node_pre_maintenance_check() {
 }
 
 node_enter_maintenance() {
-  local node=$1
+  local node=${1?}
 
   if [[ "$use_maintenance_mode" == false ]]; then
     log_prefix "$node" log_warning "Not setting maintenance mode."
@@ -482,7 +482,7 @@ node_enter_maintenance() {
 }
 
 node_exit_maintenance() {
-  local node=$1
+  local node=${1?}
 
   if [[ "$use_maintenance_mode" == false ]]; then
     return 0
@@ -501,7 +501,7 @@ node_exit_maintenance() {
 }
 
 node_pre_upgrade() {
-  local node=$1
+  local node=${1?}
   node_pre_maintenance_check "$node"
   node_enter_maintenance "$node"
   node_wait_all_tasks_completed "$node"
@@ -513,12 +513,12 @@ node_pre_upgrade() {
 }
 
 node_upgrade() {
-  local node=$1
+  local node=${1?}
   node_ssh_no_op "$node" 'DEBIAN_FRONTEND=noninteractive apt-get dist-upgrade -y' | log_pipe_level 0 "[$node][apt]"
 }
 
 node_needs_reboot() {
-  local node=$1
+  local node=${1?}
 
   expected_kernel="$(node_ssh "$node" 'grep vmlinuz /boot/grub/grub.cfg' | head -1 | awk '{ print $2 }' | sed -e 's%/boot/vmlinuz-%%;s%/ROOT/pve-1@%%')"
   booted_kernel=$(node_ssh "$node" 'uname -r')
@@ -527,7 +527,7 @@ node_needs_reboot() {
 }
 
 node_reboot() {
-  local node=$1
+  local node=${1?}
 
   if [[ "$force_reboot" == true ]]; then
     log_prefix "$node" log_warning "Forcing Reboot."
@@ -559,7 +559,7 @@ node_reboot() {
 }
 
 node_post_upgrade() {
-  local node=$1
+  local node=${1?}
 
   if [[ ${#pkgs_reinstall[@]} -gt 0 ]]; then
     log_prefix "$node" log_success "Force reinstalling '${pkgs_reinstall[*]}'..."
@@ -573,7 +573,7 @@ node_post_upgrade() {
 }
 
 node_run_update_sequence() {
-  local node=$1
+  local node=${1?}
 
   log_prefix "$node" log_success "Starting upgrade."
   node_pre_upgrade "$node"
