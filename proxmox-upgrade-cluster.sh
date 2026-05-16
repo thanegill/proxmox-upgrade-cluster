@@ -305,27 +305,22 @@ apt_update_nodes() {
   wait_all_succeed node_apt_update nodes
 }
 
-node_get_running_lxc() {
+node_get_running() {
   local node=${1?}
+  local type=${2?}
   # shellcheck disable=SC2016 # $(hostname) is supposed to run in remote host.
-  node_pvesh "$node" 'nodes/$(hostname)/lxc' | $jq_bin -rc '[.[] | select(.status != "stopped")]'
-}
-
-node_get_running_qemu() {
-  local node=${1?}
-  # shellcheck disable=SC2016 # $(hostname) is supposed to run in remote host.
-  node_pvesh "$node" 'nodes/$(hostname)/qemu' | $jq_bin -rc '[.[] | select(.status != "stopped")]'
+  node_pvesh "$node" "nodes/\$(hostname)/$type" | $jq_bin -rc '[.[] | select(.status != "stopped")]'
 }
 
 node_get_running_guest_count() {
   local node=${1?}
 
   local -i lxc_count
-  lxc_count="$(node_get_running_lxc "$node" | $jq_bin -rc '.|length')"
+  lxc_count="$(node_get_running "$node" "lxc" | $jq_bin -rc '.|length')"
   log_prefix "$node" log_verbose "Running LXC count: $lxc_count"
 
   local -i qemu_count
-  qemu_count="$(node_get_running_qemu "$node" | $jq_bin -rc '.|length')"
+  qemu_count="$(node_get_running "$node" "qemu" | $jq_bin -rc '.|length')"
   log_prefix "$node" log_verbose "Running QEMU count: $qemu_count"
 
   echo "$((lxc_count + qemu_count))"

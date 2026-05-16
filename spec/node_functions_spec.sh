@@ -33,15 +33,15 @@ Describe 'node_get_running_guest_count'
   Include proxmox-upgrade-cluster.sh
 
   It 'returns total count of running guests' do
-    node_get_running_lxc() { echo '[{"status":"running"}]'; }
-    node_get_running_qemu() { echo '[{"status":"running"},{"status":"running"}]'; }
+    node_get_running() {
+      if [[ "$2" == "lxc" ]]; then echo '[{"status":"running"}]'; else echo '[{"status":"running"},{"status":"running"}]'; fi
+    }
     When call node_get_running_guest_count 'pve1'
     The output should eq '3'
   End
 
   It 'returns 0 when no guests are running' do
-    node_get_running_lxc() { echo '[]'; }
-    node_get_running_qemu() { echo '[]'; }
+    node_get_running() { echo '[]'; }
 
     When call node_get_running_guest_count 'pve1'
     The output should eq '0'
@@ -215,13 +215,21 @@ Describe 'node_ssh_no_op'
   End
 End
 
-Describe 'node_get_running_lxc'
+Describe 'node_get_running' do
   Include proxmox-upgrade-cluster.sh
 
   It 'returns running lxc containers excluding stopped' do
     node_pvesh() { echo '[{"status":"running"},{"status":"stopped"}]'; }
 
-    When call node_get_running_lxc 'pve1'
+    When call node_get_running 'pve1' 'lxc'
+    The output should include '"status":"running"'
+    The output should not include '"status":"stopped"'
+  End
+
+  It 'returns running qemu guests excluding stopped' do
+    node_pvesh() { echo '[{"status":"running"},{"status":"stopped"}]'; }
+
+    When call node_get_running 'pve1' 'qemu'
     The output should include '"status":"running"'
     The output should not include '"status":"stopped"'
   End
@@ -229,26 +237,14 @@ Describe 'node_get_running_lxc'
   It 'returns empty array when no containers' do
     node_pvesh() { echo '[]'; }
 
-    When call node_get_running_lxc 'pve1'
+    When call node_get_running 'pve1' 'lxc'
     The output should eq '[]'
-  End
-End
-
-Describe 'node_get_running_qemu'
-  Include proxmox-upgrade-cluster.sh
-
-  It 'returns running qemu guests excluding stopped' do
-    node_pvesh() { echo '[{"status":"running"},{"status":"stopped"}]'; }
-
-    When call node_get_running_qemu 'pve1'
-    The output should include '"status":"running"'
-    The output should not include '"status":"stopped"'
   End
 
   It 'returns empty array when no guests' do
     node_pvesh() { echo '[]'; }
 
-    When call node_get_running_qemu 'pve1'
+    When call node_get_running 'pve1' 'qemu'
     The output should eq '[]'
   End
 End
