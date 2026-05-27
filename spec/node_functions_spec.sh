@@ -114,6 +114,38 @@ Describe 'node_get_mode'
     The output should eq 'online'
   End
 
+  It 'looks up the remote hostname via ssh, not the ssh-target argument' do
+    # $node ("10.0.0.4") is the ssh target; the actual hostname returned by
+    # `hostname` on the remote ("pve-prod-1") is what indexes node_status.
+    node_ssh() {
+      [[ "$2" == 'hostname' ]] && echo 'pve-prod-1'
+    }
+    node_pvesh() { echo '{"manager_status":{"node_status":{"pve-prod-1":"maintenance"}}}'; }
+
+    When call node_get_mode '10.0.0.4'
+    The output should eq 'maintenance'
+  End
+
+  It 'handles hostnames containing dots without breaking the jq filter' do
+    node_ssh() {
+      [[ "$2" == 'hostname' ]] && echo 'pve.dc1.example.com'
+    }
+    node_pvesh() { echo '{"manager_status":{"node_status":{"pve.dc1.example.com":"online"}}}'; }
+
+    When call node_get_mode 'pve1'
+    The output should eq 'online'
+  End
+
+  It 'handles hostnames that start with a digit' do
+    node_ssh() {
+      [[ "$2" == 'hostname' ]] && echo '1node-prod'
+    }
+    node_pvesh() { echo '{"manager_status":{"node_status":{"1node-prod":"online"}}}'; }
+
+    When call node_get_mode 'pve1'
+    The output should eq 'online'
+  End
+
   It 'does not leak $hostname into the caller scope' do
     node_ssh() { echo 'pve1'; }
     node_pvesh() { echo '{"manager_status":{"node_status":{"pve1":"online"}}}'; }

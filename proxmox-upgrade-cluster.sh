@@ -342,9 +342,15 @@ node_get_offline_count() {
 
 node_get_mode() {
   local node=${1?}
+  # The ssh target ($node) may be an IP, short name, or DNS name; the cluster's
+  # ha node_status is keyed by the machine's own hostname, so we ask for that
+  # over ssh rather than reusing $node.
   local hostname
   hostname=$(node_ssh "$node" hostname)
-  node_pvesh "$node" 'cluster/ha/status/manager_status' | jq -rc ".manager_status.node_status.$hostname"
+  # Pass hostname via --arg so values containing '.', leading digits, or other
+  # jq-syntax characters don't break the filter.
+  node_pvesh "$node" 'cluster/ha/status/manager_status' \
+    | jq -rc --arg name "$hostname" '.manager_status.node_status[$name]'
 }
 
 node_service_running() {
