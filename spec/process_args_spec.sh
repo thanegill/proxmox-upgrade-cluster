@@ -304,50 +304,47 @@ Describe 'process_args --verbose'
     The variable verbose should eq 2
   End
 
-  It 'handles combined -vvv pattern' do
-    process_args() {
-      local args=("$@")
-      local i=0
-      while [[ $i -lt ${#args[@]} ]]; do
-        case "${args[$i]}" in
-          --cluster-node|-c) ((i++)); ;;
-          -*)
-            local flag="${args[$i]}"
-            if [[ "$flag" == -*v* ]]; then
-              local v_count=$(( ${#flag} - 1 ))
-              verbose=$((verbose + v_count))
-            fi
-            ((i++))
-            ;;
-          *) ((i++)) ;;
-        esac
-      done
-    }
+  It 'handles the bare -v form' do
+    When call process_args '--cluster-node' 'pve1' '-v'
+    The variable verbose should eq 1
+  End
+
+  It 'handles the combined -vv form' do
+    When call process_args '--cluster-node' 'pve1' '-vv'
+    The variable verbose should eq 2
+  End
+
+  It 'handles the combined -vvv form' do
     When call process_args '--cluster-node' 'pve1' '-vvv'
     The variable verbose should eq 3
   End
 
-  It 'adds -v to ssh_options when verbose >= 5' do
-    process_args() {
-      local args=("$@")
-      local i=0
-      while [[ $i -lt ${#args[@]} ]]; do
-        case "${args[$i]}" in
-          --cluster-node|-c) ((i++)); ;;
-          -*)
-            local flag="${args[$i]}"
-            if [[ "$flag" == -*v* ]]; then
-              local v_count=$(( ${#flag} - 1 ))
-              verbose=$((verbose + v_count))
-            fi
-            ((i++))
-            ;;
-          *) ((i++)) ;;
-        esac
-      done
-    }
-    When call process_args '--cluster-node' 'pve1' '-vvvvv'
-    The variable verbose should eq 5
+  It 'composes separate -v flags and combined -vv forms' do
+    When call process_args '--cluster-node' 'pve1' '-v' '-vv'
+    The variable verbose should eq 3
+  End
+
+  It 'composes --verbose and -vv' do
+    When call process_args '--cluster-node' 'pve1' '--verbose' '-vv'
+    The variable verbose should eq 3
+  End
+
+  It 'rejects unknown flags with embedded v (e.g. -vc)' do
+    # `-vc` shouldn't match the `-+(v)` extglob (it requires v's only);
+    # falls through to the unknown-option branch.
+    verbose=1
+    When run process_args '-vc' 'pve1'
+    The status should be failure
+    The error should include "unknown option '-vc'"
+  End
+
+  It 'adds -v to ssh_options when verbose reaches 5' do
+    # Note: not testing verbose>=6 (enables `set -x` globally and pollutes
+    # the test process) or verbose>=7 (also reachable but inherits the
+    # set -x problem). One -v added at verbose=5 is enough to verify the
+    # ssh-verbosity wiring.
+    When call capture_array ssh_options '--cluster-node' 'pve1' '-vvvvv'
+    The output should include '[-v]'
   End
 End
 
