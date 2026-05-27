@@ -231,8 +231,7 @@ node_pvesh() {
 
 is_node_up() {
   local node=${1?}
-  # Default timeout to 5 seconds
-  local timeout=${5:-2}
+  local timeout=${2:-5}
   node_ssh "$node" whoami "-oConnectTimeout=$timeout" | log_pipe_level 3 "[$node]"
   local -i node_status=$?
   if [[ $node_status -eq 0 ]]; then
@@ -560,7 +559,7 @@ node_post_upgrade() {
     log_prefix "$node" log_info "No packages to force reinstall."
   fi
   log_prefix "$node" log_success "Removing old packages..."
-  node_ssh_no_op "$node" "DEBIAN_FRONTEND=noninteractive apt-get autoremove -y && apt-get autoremove -y" | log_pipe_level 0 "[$node][apt]"
+  node_ssh_no_op "$node" "DEBIAN_FRONTEND=noninteractive apt-get autoremove -y && apt-get autoclean -y" | log_pipe_level 0 "[$node][apt]"
   node_exit_maintenance "$node"
 }
 

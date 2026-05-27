@@ -361,6 +361,20 @@ Describe 'is_node_up'
     The status should be failure
     The error should include 'Node is down'
   End
+
+  It 'passes default timeout of 5 seconds when none provided' do
+    node_ssh() { echo "args: $*"; }
+
+    When call is_node_up 'pve1'
+    The error should include '-oConnectTimeout=5'
+  End
+
+  It 'passes the custom timeout when provided as second arg' do
+    node_ssh() { echo "args: $*"; }
+
+    When call is_node_up 'pve1' '10'
+    The error should include '-oConnectTimeout=10'
+  End
 End
 
 Describe 'is_node_proxmox'
