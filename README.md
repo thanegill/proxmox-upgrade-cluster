@@ -15,7 +15,7 @@ nodes.
 
 ## Requirements
 
-* Bash
+* Bash 4.4 or newer
 * SSH access to all Proxmox nodes
 * [jq](https://jqlang.org/) installed on your system, can be specified with `--jq-bin`.
 
