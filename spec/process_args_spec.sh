@@ -141,91 +141,45 @@ Describe 'process_args --ssh-opt'
   End
 End
 
-Describe 'process_args flags'
+Describe 'process_args boolean flags'
   Include proxmox-upgrade-cluster.sh
 
-  Describe '--ssh-allow-password-auth' do
-    It 'sets ssh_key_auth_only to false' do
-      When call process_args '--cluster-node' 'pve1' '--ssh-allow-password-auth'
-      The variable ssh_key_auth_only should eq 'false'
-    End
+  # (flag, variable, value-after-set). Defaults are covered by
+  # variables_spec.sh — only the "flag flips variable" direction lives here.
+  Parameters
+    --ssh-allow-password-auth   ssh_key_auth_only        false
+    --cluster-node-use-ip       cluster_node_use_ip      true
+    --dry-run                   dry_run                  true
+    --force-upgrade             force_upgrade            true
+    --force-reboot              force_reboot             true
+    --skip-reboot               skip_reboot              true
+    --no-maintenance-mode       use_maintenance_mode     false
+    --allow-running-guests      allow_running_guests     true
+    --allow-running-tasks       allow_running_tasks      true
+    --preserve-discovery-order  preserve_discovery_order true
   End
 
-  Describe '--cluster-node-use-ip' do
-    It 'sets cluster_node_use_ip to true' do
-      When call process_args '--cluster-node' 'pve1' '--cluster-node-use-ip'
-      The variable cluster_node_use_ip should eq 'true'
-    End
+  It "$1 sets $2 to $3" do
+    When call process_args '--cluster-node' 'pve1' "$1"
+    The variable "$2" should eq "$3"
+  End
+End
+
+Describe 'process_args --skip-reboot mutex with --force-reboot'
+  Include proxmox-upgrade-cluster.sh
+
+  It 'exits with error when --skip-reboot precedes --force-reboot' do
+    verbose=1
+    When run process_args '--cluster-node' 'pve1' '--skip-reboot' '--force-reboot'
+    The status should be failure
+    The error should include '--force-reboot and --skip-reboot cannot be used together'
   End
 
-  Describe '--dry-run' do
-    It 'sets dry_run to true' do
-      When call process_args '--cluster-node' 'pve1' '--dry-run'
-      The variable dry_run should eq 'true'
-    End
-  End
-
-  Describe '--force-upgrade' do
-    It 'sets force_upgrade to true' do
-      When call process_args '--cluster-node' 'pve1' '--force-upgrade'
-      The variable force_upgrade should eq 'true'
-    End
-  End
-
-  Describe '--force-reboot' do
-    It 'sets force_reboot to true' do
-      When call process_args '--cluster-node' 'pve1' '--force-reboot'
-      The variable force_reboot should eq 'true'
-    End
-  End
-
-  Describe '--skip-reboot' do
-    It 'sets skip_reboot to true' do
-      When call process_args '--cluster-node' 'pve1' '--skip-reboot'
-      The variable skip_reboot should eq 'true'
-    End
-
-    It 'defaults to false' do
-      When call process_args '--cluster-node' 'pve1'
-      The variable skip_reboot should eq 'false'
-    End
-  End
-
-  Describe '--skip-reboot mutex with --force-reboot' do
-    It 'exits with error when --skip-reboot precedes --force-reboot' do
-      verbose=1
-      When run process_args '--cluster-node' 'pve1' '--skip-reboot' '--force-reboot'
-      The status should be failure
-      The error should include '--force-reboot and --skip-reboot cannot be used together'
-    End
-
-    It 'exits with error when --force-reboot precedes --skip-reboot' do
-      verbose=1
-      When run process_args '--cluster-node' 'pve1' '--force-reboot' '--skip-reboot'
-      The status should be failure
-      The error should include '--force-reboot and --skip-reboot cannot be used together'
-    End
-  End
-
-  Describe '--no-maintenance-mode' do
-    It 'sets use_maintenance_mode to false' do
-      When call process_args '--cluster-node' 'pve1' '--no-maintenance-mode'
-      The variable use_maintenance_mode should eq 'false'
-    End
-  End
-
-  Describe '--allow-running-guests' do
-    It 'sets allow_running_guests to true' do
-      When call process_args '--cluster-node' 'pve1' '--allow-running-guests'
-      The variable allow_running_guests should eq 'true'
-    End
-  End
-
-  Describe '--allow-running-tasks' do
-    It 'sets allow_running_tasks to true' do
-      When call process_args '--cluster-node' 'pve1' '--allow-running-tasks'
-      The variable allow_running_tasks should eq 'true'
-    End
+  It 'exits with error when --force-reboot precedes --skip-reboot' do
+    verbose=1
+    When run process_args '--cluster-node' 'pve1' '--force-reboot' '--skip-reboot'
+    The status should be failure
+    The error should include '--force-reboot and --skip-reboot cannot be used together'
   End
 End
 
@@ -253,20 +207,6 @@ Describe 'process_args --jq-bin (removed)'
     When run process_args '--cluster-node' 'pve1' '--jq-bin' '/usr/local/bin/jq'
     The status should be failure
     The error should include "unknown option '--jq-bin'"
-  End
-End
-
-Describe 'process_args --preserve-discovery-order'
-  Include proxmox-upgrade-cluster.sh
-
-  It 'defaults to false' do
-    When call process_args '--cluster-node' 'pve1'
-    The variable preserve_discovery_order should eq 'false'
-  End
-
-  It 'sets preserve_discovery_order to true when passed' do
-    When call process_args '--cluster-node' 'pve1' '--preserve-discovery-order'
-    The variable preserve_discovery_order should eq 'true'
   End
 End
 
