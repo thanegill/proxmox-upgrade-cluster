@@ -6,6 +6,9 @@
 nix develop -c shellspec                    # All tests
 nix develop -c shellspec spec/file_name.sh  # Specific test file
 nix develop -c shellspec --dry-run          # List examples without running
+nix develop -c shellspec --random=specfiles # Verify order-independence
+nix develop -c shellcheck proxmox-upgrade-cluster.sh  # Static analysis
+nix build .#default                         # Build the script via flake
 ```
 
 ## Test Structure
@@ -281,6 +284,13 @@ It 'calls node_ssh_no_op with dist-upgrade command' do
 End
 ```
 
+### Auditing mocks when the real function's emission shape changes
+
+When changing how a function emits data (e.g. one-per-line vs space-joined),
+audit every mock that simulates it. An `echo ''` mock that was benign under
+word-splitting becomes a one-element-with-empty-string array under
+`mapfile -t`, which can drive callers into loops they never reached before.
+
 ## Testing Log Output
 
 Log functions write to stderr. Always add expectations for log messages:
@@ -395,6 +405,9 @@ End
 | DSL keywords lowercase | ShellSpec is case-sensitive: `Describe`, `It`, `When`, `The`, `End` |
 | `log_pipe_level` writes to `$log_output` not stdout | Override `log_output=/dev/stdout` in wrapper function for capture |
 | `Mock` with `return` instead of `exit` | Mock runs in a subshell; use `exit 0` or `exit 1` |
+| `Mock` block can't keep state across calls | Mock runs in a subshell; for stateful counters use an inline function override |
+| `satisfy` matcher errors with `value: unbound` | Read the subject as `${value:-}` — the matcher runs under `nounset` |
+| Need a value mid-`When call` for a later matcher | `$output` isn't exposed between assertions; do the comparison inside the driver function and assert on its stdout |
 
 ## Test File Organization
 
