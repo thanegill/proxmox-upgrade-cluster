@@ -94,6 +94,19 @@ Describe 'node_get_mode'
     When call node_get_mode 'pve1'
     The output should eq 'online'
   End
+
+  It 'does not leak $hostname into the caller scope' do
+    node_ssh() { echo 'pve1'; }
+    node_pvesh() { echo '{"manager_status":{"node_status":{"pve1":"online"}}}'; }
+    leak_check() {
+      unset hostname
+      node_get_mode 'pve1' >/dev/null
+      [[ -z "${hostname+x}" ]] && echo 'no leak' || echo "leaked: $hostname"
+    }
+
+    When call leak_check
+    The output should eq 'no leak'
+  End
 End
 
 Describe 'node_service_running'
@@ -149,6 +162,18 @@ Describe 'node_has_updates'
 
     When call node_has_updates 'pve1'
     The status should be failure
+  End
+
+  It 'does not leak $updates into the caller scope' do
+    node_ssh() { echo 'Installs: 5'; }
+    leak_check() {
+      unset updates
+      node_has_updates 'pve1' >/dev/null
+      [[ -z "${updates+x}" ]] && echo 'no leak' || echo "leaked: $updates"
+    }
+
+    When call leak_check
+    The output should eq 'no leak'
   End
 End
 
@@ -334,6 +359,20 @@ Describe 'node_wait_until_mode'
     When call node_wait_until_mode 'pve1' 'online'
     The error should include 'Current mode'
     rm -f "$_mode_file"
+  End
+
+  It 'does not leak $mode into the caller scope' do
+    verbose=0
+    node_get_mode() { echo 'online'; }
+    wait_sleep() { :; }
+    leak_check() {
+      unset mode
+      node_wait_until_mode 'pve1' 'online' 2>/dev/null
+      [[ -z "${mode+x}" ]] && echo 'no leak' || echo "leaked: $mode"
+    }
+
+    When call leak_check
+    The output should eq 'no leak'
   End
 End
 

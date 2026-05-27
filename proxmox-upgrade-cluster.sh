@@ -274,10 +274,10 @@ all_nodes_proxmox() {
 
 node_has_updates() {
   local node=${1?}
+  local updates
   updates="$(node_ssh "$node" 'DEBIAN_FRONTEND=noninteractive apt-get -qq -s upgrade')"
   echo "$updates" | log_pipe_level 2 "[$node][apt]"
-  # return 1 if $updates is empty
-  [[ ! -z "$updates" ]]
+  [[ -n "$updates" ]]
 }
 
 get_nodes_upgradeable() {
@@ -334,6 +334,7 @@ node_get_offline_count() {
 
 node_get_mode() {
   local node=${1?}
+  local hostname
   hostname=$(node_ssh "$node" hostname)
   node_pvesh "$node" 'cluster/ha/status/manager_status' | $jq_bin -rc ".manager_status.node_status.$hostname"
 }
@@ -366,6 +367,7 @@ node_wait_until_mode() {
   local target_mode=${2?}
 
   log_prefix "$node" log_status "Waiting until node enters $target_mode mode..."
+  local mode
   mode=$(node_get_mode "$node")
   until [[ "$mode" == "$target_mode" ]]; do
     log_prefix "$node" log_verbose "Current mode '$mode' target mode '$target_mode'."
