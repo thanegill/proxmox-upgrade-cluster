@@ -17,7 +17,7 @@ nodes.
 
 * Bash 4.4 or newer
 * SSH access to all Proxmox nodes
-* [jq](https://jqlang.org/) installed on your system, can be specified with `--jq-bin`.
+* [jq](https://jqlang.org/) installed on your system and on `PATH`.
 
 ## Assumptions, omissions, and possible future features
 
@@ -86,9 +86,6 @@ OPTIONS
 
     --allow-running-tasks
         Disable check for running tasks on the cluster prior to upgrade.
-
-    --jq-bin PATH
-        Path to 'jq' binary.
 
     -v, --verbose
         Log actions and details to stdout. When multiple -v options are given,

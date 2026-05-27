@@ -23,8 +23,8 @@ Describe 'proxmox-upgrade-cluster.sh'
       The output should include '&2'
     End
 
-    It 'has jq_bin default to jq' do
-      The variable jq_bin should eq 'jq'
+    It 'has reboot_timeout default to 600' do
+      The variable reboot_timeout should eq 600
     End
   End
 

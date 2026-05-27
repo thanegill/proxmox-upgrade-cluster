@@ -1,6 +1,23 @@
 Describe 'main'
   Include proxmox-upgrade-cluster.sh
 
+  Describe 'jq prerequisite check' do
+    It 'exits 1 with a clear error when jq is not on PATH' do
+      # Override `command` so the jq lookup fails. `command -v jq` returns 1.
+      command() {
+        if [[ "$1" == '-v' && "$2" == 'jq' ]]; then
+          return 1
+        fi
+        builtin command "$@"
+      }
+
+      When run main '--cluster-node' 'pve1'
+      The status should be failure
+      The status should eq 1
+      The error should include "'jq' is required"
+    End
+  End
+
   Describe 'empty cluster discovery' do
     It 'exits 1 with a clear error when get_cluster_nodes returns nothing' do
       is_node_up() { return 0; }

@@ -16,7 +16,6 @@ declare dry_run=false
 declare use_maintenance_mode=true
 declare allow_running_guests=false
 declare allow_running_tasks=false
-declare jq_bin="jq"
 declare -i reboot_timeout=600
 declare -i verbose=0
 
@@ -230,7 +229,7 @@ node_pvesh() {
   local path=${2?}
   local args=${3:-}
   log_prefix "$node" log_debug2 "JSON output:"
-  node_ssh "$node" "pvesh get $path $args --output-form=json" | tee >($jq_bin | log_pipe_level 3 "[$node]")
+  node_ssh "$node" "pvesh get $path $args --output-form=json" | tee >(jq | log_pipe_level 3 "[$node]")
 }
 
 is_node_up() {
@@ -255,9 +254,9 @@ get_cluster_nodes() {
   # Emit one node per line so callers can read into an array via mapfile -t.
   local node=${1?}
   if [[ "$cluster_node_use_ip" == true ]]; then
-    node_pvesh "$node" "cluster/status" | $jq_bin -r '.[] | select(.type == "node") | .ip'
+    node_pvesh "$node" "cluster/status" | jq -r '.[] | select(.type == "node") | .ip'
   else
-    node_pvesh "$node" "cluster/status" | $jq_bin -r '.[] | select(.type == "node") | .name'
+    node_pvesh "$node" "cluster/status" | jq -r '.[] | select(.type == "node") | .name'
   fi
 }
 
@@ -319,18 +318,18 @@ node_get_running() {
   local node=${1?}
   local type=${2?}
   # shellcheck disable=SC2016 # $(hostname) is supposed to run in remote host.
-  node_pvesh "$node" "nodes/\$(hostname)/$type" | $jq_bin -rc '[.[] | select(.status != "stopped")]'
+  node_pvesh "$node" "nodes/\$(hostname)/$type" | jq -rc '[.[] | select(.status != "stopped")]'
 }
 
 node_get_running_guest_count() {
   local node=${1?}
 
   local -i lxc_count
-  lxc_count="$(node_get_running "$node" "lxc" | $jq_bin -rc '.|length')"
+  lxc_count="$(node_get_running "$node" "lxc" | jq -rc '.|length')"
   log_prefix "$node" log_verbose "Running LXC count: $lxc_count"
 
   local -i qemu_count
-  qemu_count="$(node_get_running "$node" "qemu" | $jq_bin -rc '.|length')"
+  qemu_count="$(node_get_running "$node" "qemu" | jq -rc '.|length')"
   log_prefix "$node" log_verbose "Running QEMU count: $qemu_count"
 
   echo "$((lxc_count + qemu_count))"
@@ -338,14 +337,14 @@ node_get_running_guest_count() {
 
 node_get_offline_count() {
   local node=${1?}
-  node_pvesh "$node" 'cluster/ha/status/manager_status' | $jq_bin -rc '[.manager_status.node_status[] | select(. != "online")] | length'
+  node_pvesh "$node" 'cluster/ha/status/manager_status' | jq -rc '[.manager_status.node_status[] | select(. != "online")] | length'
 }
 
 node_get_mode() {
   local node=${1?}
   local hostname
   hostname=$(node_ssh "$node" hostname)
-  node_pvesh "$node" 'cluster/ha/status/manager_status' | $jq_bin -rc ".manager_status.node_status.$hostname"
+  node_pvesh "$node" 'cluster/ha/status/manager_status' | jq -rc ".manager_status.node_status.$hostname"
 }
 
 node_service_running() {
@@ -411,7 +410,7 @@ node_wait_until_no_running_guests() {
 node_number_of_running_tasks() {
   local node=${1?}
   # shellcheck disable=SC2016 # $(hostname) is supposed to run in remote host.
-  node_pvesh "$node" 'nodes/$(hostname)/tasks' '--source=active' | $jq_bin -rc '.|length'
+  node_pvesh "$node" 'nodes/$(hostname)/tasks' '--source=active' | jq -rc '.|length'
 }
 
 node_not_running_task() {
@@ -701,9 +700,6 @@ OPTIONS
         Maximum number of seconds to wait for a node to come back up after a
         reboot before aborting the upgrade. Defaults to $reboot_timeout.
 
-    --jq-bin PATH
-        Path to 'jq' binary.
-
     -v, --verbose
         Log actions and details to stdout. When multiple -v options are given,
         enable verbose logging for de-bugging purposes.
@@ -806,11 +802,6 @@ process_args() {
         error_on_no_arg "--reboot-timeout" "${1:-}"
         reboot_timeout="$1"
         ;;
-      --jq-bin)
-        shift
-        error_on_no_arg "--jq-bin" "${1:-}"
-        jq_bin="$1"
-        ;;
       --verbose)
         verbose=$((verbose + 1))
         ;;
@@ -855,6 +846,11 @@ process_args() {
 
 main() {
   process_args "$@"
+
+  if ! command -v jq >/dev/null 2>&1; then
+    log_error "ERROR: 'jq' is required but was not found on PATH."
+    exit 1
+  fi
 
   if [[ "$dry_run" == true ]]; then
     log_warning "Running in dry run mode."

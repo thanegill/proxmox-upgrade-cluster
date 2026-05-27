@@ -259,12 +259,14 @@ Describe 'process_args --pkg-reinstall'
   End
 End
 
-Describe 'process_args --jq-bin'
+Describe 'process_args --jq-bin (removed)'
   Include proxmox-upgrade-cluster.sh
 
-  It 'sets jq_bin variable' do
-    When call process_args '--cluster-node' 'pve1' '--jq-bin' '/usr/local/bin/jq'
-    The variable jq_bin should eq '/usr/local/bin/jq'
+  It 'rejects --jq-bin as an unknown option' do
+    verbose=1
+    When run process_args '--cluster-node' 'pve1' '--jq-bin' '/usr/local/bin/jq'
+    The status should be failure
+    The error should include "unknown option '--jq-bin'"
   End
 End
 
