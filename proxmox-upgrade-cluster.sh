@@ -18,6 +18,7 @@ declare use_maintenance_mode=true
 declare allow_running_guests=false
 declare allow_running_tasks=false
 declare preserve_discovery_order=false
+declare reboot_only=false
 declare -i reboot_timeout=900
 declare -i verbose=0
 
@@ -561,6 +562,10 @@ node_exit_maintenance() {
 
 node_upgrade() {
   local node=${1?}
+  if [[ "$reboot_only" == true ]]; then
+    log_prefix "$node" log_status "Skipping apt dist-upgrade (--reboot-only)."
+    return 0
+  fi
   node_ssh_no_op "$node" 'DEBIAN_FRONTEND=noninteractive apt-get dist-upgrade -y' | log_pipe_level 0 "[$node][apt]"
 }
 
@@ -650,6 +655,10 @@ node_reboot() {
 
 node_post_upgrade() {
   local node=${1?}
+  if [[ "$reboot_only" == true ]]; then
+    log_prefix "$node" log_status "Skipping apt cleanup (--reboot-only)."
+    return 0
+  fi
 
   if [[ ${#pkgs_reinstall[@]} -gt 0 ]]; then
     log_prefix "$node" log_success "Force reinstalling '${pkgs_reinstall[*]}'..."
@@ -767,6 +776,13 @@ OPTIONS
 
     --force-upgrade
         Force all nodes to upgrade, and not only those with available upgrades.
+
+    --reboot-only
+        Skip apt-update and apt-get dist-upgrade entirely. Filter
+        cluster_nodes via node_needs_reboot and reboot just the ones
+        running a kernel older than the one staged for boot. Mutually
+        exclusive with --force-upgrade, --force-reboot, and
+        --skip-reboot.
 
     --no-maintenance-mode
         Don't set node to maintenance mode when upgrading. This will disable
@@ -901,6 +917,9 @@ process_args() {
       --force-upgrade)
         force_upgrade=true
         ;;
+      --reboot-only)
+        reboot_only=true
+        ;;
       --force-reboot)
         force_reboot=true
         ;;
@@ -969,6 +988,24 @@ process_args() {
     log_error "ERROR: --force-reboot and --skip-reboot cannot be used together."
     log_error "See --help for usage."
     exit 1
+  fi
+
+  if [[ "$reboot_only" == true ]]; then
+    if [[ "$force_upgrade" == true ]]; then
+      log_error "ERROR: --reboot-only and --force-upgrade cannot be used together."
+      log_error "See --help for usage."
+      exit 1
+    fi
+    if [[ "$skip_reboot" == true ]]; then
+      log_error "ERROR: --reboot-only and --skip-reboot cannot be used together."
+      log_error "See --help for usage."
+      exit 1
+    fi
+    if [[ "$force_reboot" == true ]]; then
+      log_error "ERROR: --reboot-only and --force-reboot cannot be used together."
+      log_error "See --help for usage."
+      exit 1
+    fi
   fi
 }
 
@@ -1039,14 +1076,20 @@ main() {
     fi
   fi
 
-  log_status "Checking for updates on all nodes..."
-  apt_update_nodes cluster_nodes
-
-  if [[ "$force_upgrade" == true ]]; then
-    upgrade_nodes=("${cluster_nodes[@]}")
-    log_warning "Forcing upgrade for all nodes, not just those that have updates available."
+  if [[ "$reboot_only" == true ]]; then
+    log_warning "Reboot-only mode: skipping apt-update and dist-upgrade."
+    log_status "Checking which nodes need a reboot..."
+    mapfile -t upgrade_nodes < <(get_nodes_needing_reboot cluster_nodes)
   else
-    mapfile -t upgrade_nodes < <(get_nodes_upgradeable cluster_nodes)
+    log_status "Checking for updates on all nodes..."
+    apt_update_nodes cluster_nodes
+
+    if [[ "$force_upgrade" == true ]]; then
+      upgrade_nodes=("${cluster_nodes[@]}")
+      log_warning "Forcing upgrade for all nodes, not just those that have updates available."
+    else
+      mapfile -t upgrade_nodes < <(get_nodes_upgradeable cluster_nodes)
+    fi
   fi
 
   if [[ "$use_maintenance_mode" == false ]]; then

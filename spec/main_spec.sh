@@ -180,6 +180,61 @@ Describe 'main'
     End
   End
 
+  Describe 'reboot-only mode' do
+    pass_health_checks_reboot_only() {
+      is_node_up() { return 0; }
+      is_node_proxmox() { return 0; }
+      all_nodes_up() { return 0; }
+      all_nodes_proxmox() { return 0; }
+      node_get_offline_count() { echo '0'; }
+      any_nodes_running_tasks() { return 0; }
+      node_run_update_sequence() { echo "RUN: $1"; }
+      get_cluster_nodes() { printf '%s\n' pveA pveB pveC; }
+    }
+
+    It 'skips apt_update_nodes when --reboot-only is set' do
+      pass_health_checks_reboot_only
+      apt_update_nodes() { echo 'apt_update_nodes-called' >&2; }
+      node_needs_reboot() { return 1; }   # nobody needs reboot → upgrade_nodes empty → exit 0
+
+      When run main '--cluster-node' 'pve1' '--reboot-only'
+      The status should be success
+      The error should include 'Reboot-only mode'
+      The error should not include 'apt_update_nodes-called'
+    End
+
+    It 'populates upgrade_nodes from get_nodes_needing_reboot' do
+      pass_health_checks_reboot_only
+      apt_update_nodes() { :; }
+      node_needs_reboot() {
+        case "$1" in
+          pveA) return 0 ;;
+          pveB) return 1 ;;
+          pveC) return 0 ;;
+        esac
+      }
+      # The sort step runs on the filtered upgrade_nodes; mock its dependency.
+      node_get_running_guest_count() { echo '0'; }
+
+      When run main '--cluster-node' 'pve1' '--reboot-only'
+      The status should be success
+      The output should include 'RUN: pveA'
+      The output should include 'RUN: pveC'
+      The output should not include 'RUN: pveB'
+      The error should include 'Reboot-only mode'
+    End
+
+    It 'exits 0 when no node needs a reboot' do
+      pass_health_checks_reboot_only
+      apt_update_nodes() { :; }
+      node_needs_reboot() { return 1; }
+
+      When run main '--cluster-node' 'pve1' '--reboot-only'
+      The status should be success
+      The error should include 'No nodes need updates'
+    End
+  End
+
   Describe 'upgrade-sequence sorting' do
     # Shared stubs: get past all health checks, no apt updates available, then
     # exit before the upgrade loop runs. node_run_update_sequence is mocked so

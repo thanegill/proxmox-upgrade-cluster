@@ -252,6 +252,19 @@ Describe 'node_post_upgrade'
     The error should include "Force reinstalling"
     The error should include 'Removing old packages'
   End
+
+  It 'skips all apt cleanup and returns 0 when reboot_only=true' do
+    reboot_only=true
+    pkgs_reinstall=("pve-firmware")
+    node_ssh_no_op() { echo 'ssh_no_op-called' >&2; }
+
+    When call node_post_upgrade 'pve1'
+    The status should be success
+    The error should include 'Skipping apt cleanup (--reboot-only)'
+    The error should not include 'ssh_no_op-called'
+    The error should not include 'Force reinstalling'
+    The error should not include 'Removing old packages'
+  End
 End
 
 Describe 'node_run_update_sequence'

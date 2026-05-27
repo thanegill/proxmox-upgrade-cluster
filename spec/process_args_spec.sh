@@ -176,6 +176,7 @@ Describe 'process_args boolean flags'
     --force-upgrade             force_upgrade            true
     --force-reboot              force_reboot             true
     --skip-reboot               skip_reboot              true
+    --reboot-only               reboot_only              true
     --no-maintenance-mode       use_maintenance_mode     false
     --allow-running-guests      allow_running_guests     true
     --allow-running-tasks       allow_running_tasks      true
@@ -203,6 +204,30 @@ Describe 'process_args --skip-reboot mutex with --force-reboot'
     When run process_args '--cluster-node' 'pve1' '--force-reboot' '--skip-reboot'
     The status should be failure
     The error should include '--force-reboot and --skip-reboot cannot be used together'
+  End
+End
+
+Describe 'process_args --reboot-only mutex'
+  Include proxmox-upgrade-cluster.sh
+
+  Parameters
+    --force-upgrade
+    --skip-reboot
+    --force-reboot
+  End
+
+  It "exits with error when --reboot-only precedes $1" do
+    verbose=1
+    When run process_args '--cluster-node' 'pve1' '--reboot-only' "$1"
+    The status should be failure
+    The error should include "--reboot-only and $1 cannot be used together"
+  End
+
+  It "exits with error when $1 precedes --reboot-only" do
+    verbose=1
+    When run process_args '--cluster-node' 'pve1' "$1" '--reboot-only'
+    The status should be failure
+    The error should include "--reboot-only and $1 cannot be used together"
   End
 End
 

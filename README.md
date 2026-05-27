@@ -79,6 +79,13 @@ OPTIONS
     --force-upgrade
         Force all nodes to upgrade, and not only those with available upgrades.
 
+    --reboot-only
+        Skip apt-update and apt-get dist-upgrade entirely. Filter
+        cluster_nodes via node_needs_reboot and reboot just the ones
+        running a kernel older than the one staged for boot. Mutually
+        exclusive with --force-upgrade, --force-reboot, and
+        --skip-reboot.
+
     --no-maintenance-mode
         Don't set node to maintenance mode when upgrading. This will disable
         HA migrations. Default: maintenance mode is enabled.

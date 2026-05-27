@@ -38,6 +38,7 @@ Describe 'proxmox-upgrade-cluster.sh'
       force_upgrade            false
       force_reboot             false
       skip_reboot              false
+      reboot_only              false
       dry_run                  false
       use_maintenance_mode     true
       allow_running_guests     false

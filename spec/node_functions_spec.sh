@@ -381,6 +381,16 @@ Describe 'node_upgrade'
     When call node_upgrade 'pve1'
     The error should include 'upgraded'
   End
+
+  It 'skips apt dist-upgrade and returns 0 when reboot_only=true' do
+    reboot_only=true
+    node_ssh_no_op() { echo 'ssh_no_op-called' >&2; }
+
+    When call node_upgrade 'pve1'
+    The status should be success
+    The error should include 'Skipping apt dist-upgrade (--reboot-only)'
+    The error should not include 'ssh_no_op-called'
+  End
 End
 
 Describe 'node_apt_update'
