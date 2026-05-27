@@ -23,8 +23,8 @@ Describe 'proxmox-upgrade-cluster.sh'
       The output should include '&2'
     End
 
-    It 'has reboot_timeout default to 600' do
-      The variable reboot_timeout should eq 600
+    It 'has reboot_timeout default to 900' do
+      The variable reboot_timeout should eq 900
     End
   End
 

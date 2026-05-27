@@ -73,14 +73,13 @@ OPTIONS
         Flag to force all nodes to upgrade, and not only those with available upgrades.
 
     --force-reboot
-        Flag to force all nodes to be rebooted during upgrade, and not only
-        those that aren't booted with the same kernel as the currently installed
-        one.
+        Force all nodes to be rebooted during upgrade, and not only those that
+        aren't booted with the same kernel as the currently installed one.
+        Mutually exclusive with --skip-reboot.
 
     --skip-reboot
-        Flag to skip the reboot step entirely, even when a new kernel is
-        staged for boot. Mutually exclusive with --force-reboot. The operator
-        is responsible for rebooting later to pick up any new kernel.
+        Skip the reboot step entirely, even when a new kernel is staged for
+        boot. Mutually exclusive with --force-reboot.
 
     --no-maintenance-mode
         Don't set node to maintenance mode when upgrading. This will disable
@@ -96,6 +95,10 @@ OPTIONS
         When using --cluster-node, do not reorder the upgrade sequence
         ascending by running guest count. Default is to sort so the node
         with the fewest guests upgrades first.
+
+    --reboot-timeout SECONDS
+        Maximum number of seconds to wait for a node to come back up after a
+        reboot before aborting the upgrade. Defaults to 900 (15 minutes).
 
     -v, --verbose
         Log actions and details to stdout. When multiple -v options are given,

@@ -320,9 +320,9 @@ Describe 'process_args --reboot-timeout'
     The variable reboot_timeout should eq 120
   End
 
-  It 'defaults to 600 seconds when not passed' do
+  It 'defaults to 900 seconds when not passed' do
     When call process_args '--cluster-node' 'pve1'
-    The variable reboot_timeout should eq 600
+    The variable reboot_timeout should eq 900
   End
 
   It 'exits with error when no value is provided' do

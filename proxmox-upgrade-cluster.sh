@@ -18,7 +18,7 @@ declare use_maintenance_mode=true
 declare allow_running_guests=false
 declare allow_running_tasks=false
 declare preserve_discovery_order=false
-declare -i reboot_timeout=600
+declare -i reboot_timeout=900
 declare -i verbose=0
 
 declare cluster_node
@@ -725,14 +725,13 @@ OPTIONS
         Flag to force all nodes to upgrade, and not only those with available upgrades.
 
     --force-reboot
-        Flag to force all nodes to be rebooted during upgrade, and not only
-        those that aren't booted with the same kernel as the currently installed
-        one.
+        Force all nodes to be rebooted during upgrade, and not only those that
+        aren't booted with the same kernel as the currently installed one.
+        Mutually exclusive with --skip-reboot.
 
     --skip-reboot
-        Flag to skip the reboot step entirely, even when a new kernel is
-        staged for boot. Mutually exclusive with --force-reboot. The operator
-        is responsible for rebooting later to pick up any new kernel.
+        Skip the reboot step entirely, even when a new kernel is staged for
+        boot. Mutually exclusive with --force-reboot.
 
     --no-maintenance-mode
         Don't set node to maintenance mode when upgrading. This will disable
