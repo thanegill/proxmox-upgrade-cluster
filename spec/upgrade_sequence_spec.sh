@@ -255,6 +255,7 @@ End
 
 Describe 'node_run_update_sequence'
   Include proxmox-upgrade-cluster.sh
+  # The trap fires via errexit propagation; tests must run with set -e on.
   Set errexit:on
 
   It 'runs all upgrade steps on the success path without warning' do
@@ -270,7 +271,7 @@ Describe 'node_run_update_sequence'
     The error should not include 'may still be in maintenance'
   End
 
-  It 'warns about maintenance and does NOT auto-recover when an upgrade step fails' do
+  It 'warns about maintenance and does NOT auto-recover when node_upgrade fails' do
     use_maintenance_mode=true
     node_pre_upgrade() { :; }
     node_upgrade() { return 1; }
@@ -284,6 +285,62 @@ Describe 'node_run_update_sequence'
     The error should include 'ha-manager crm-command node-maintenance disable'
     The error should not include 'should not reach'
     The error should not include 'auto-recovery ran'
+  End
+
+  It 'fires the trap when node_pre_upgrade fails (maintenance may have been entered)' do
+    use_maintenance_mode=true
+    node_pre_upgrade() { return 1; }
+    node_upgrade() { echo 'should not reach upgrade' >&2; }
+    node_reboot() { echo 'should not reach reboot' >&2; }
+    node_post_upgrade() { echo 'should not reach post' >&2; }
+
+    When run node_run_update_sequence 'pveX'
+    The status should be failure
+    The error should include 'may still be in maintenance mode'
+    The error should not include 'should not reach'
+  End
+
+  It 'fires the trap when node_reboot fails (post_upgrade never exits maintenance)' do
+    use_maintenance_mode=true
+    node_pre_upgrade() { :; }
+    node_upgrade() { :; }
+    node_reboot() { return 1; }
+    node_post_upgrade() { echo 'should not reach post' >&2; }
+
+    When run node_run_update_sequence 'pveY'
+    The status should be failure
+    The error should include 'may still be in maintenance mode'
+    The error should not include 'should not reach'
+  End
+
+  It 'fires the trap when node_post_upgrade fails (e.g. before its exit_maintenance call)' do
+    use_maintenance_mode=true
+    node_pre_upgrade() { :; }
+    node_upgrade() { :; }
+    node_reboot() { :; }
+    # Fail post_upgrade — exit_maintenance inside it never runs.
+    node_post_upgrade() { return 1; }
+
+    When run node_run_update_sequence 'pveZ'
+    The status should be failure
+    The error should include 'may still be in maintenance mode'
+  End
+
+  It 'cites the active node by name in the maintenance warning' do
+    # Regression for trap stale-capture: the trap installed inside
+    # node_run_update_sequence captures $node by value at install-time
+    # (interpolated into the trap body). Verify with a non-default node
+    # name; the log_prefix tags the warning with [<node>].
+    use_maintenance_mode=true
+    node_pre_upgrade() { :; }
+    node_upgrade() { return 1; }
+    node_reboot() { :; }
+    node_post_upgrade() { :; }
+
+    When run node_run_update_sequence 'pveXYZ'
+    The status should be failure
+    The error should include '[pveXYZ]'
+    The error should include 'may still be in maintenance mode'
   End
 
   It 'does not warn when use_maintenance_mode is false even on failure' do
