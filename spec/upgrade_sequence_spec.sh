@@ -515,16 +515,25 @@ Describe 'get_nodes_upgradeable'
   End
 End
 
+# Install a stub for $1 that appends its first argument to a temp file
+# and returns 0. The temp-file path is set as `$invocations` for the
+# caller to assert against via `The contents of file "$invocations"`.
+#
+# wait_all_succeed runs each invocation in a background subshell, so a
+# regular `called_nodes=()` array would lose its appends — the tempfile
+# survives the subshell boundary.
+#
+# Caller should `rm -f "$invocations"` after.
+record_invocations() {
+  invocations="$(mktemp)"
+  eval "$1() { echo \"\$1\" >> \"$invocations\"; return 0; }"
+}
+
 Describe 'apt_update_nodes'
   Include proxmox-upgrade-cluster.sh
 
-  # wait_all_succeed runs each invocation in a background subshell, so
-  # mutations to a `called_nodes=()` array in the mock don't survive back
-  # to the parent. Use a temp-file marker that the subshells append to.
-
   It 'calls node_apt_update for each node' do
-    invocations="$(mktemp)"
-    node_apt_update() { echo "$1" >> "$invocations"; }
+    record_invocations node_apt_update
     cluster_nodes=("pve1" "pve2")
 
     When call apt_update_nodes cluster_nodes
@@ -539,8 +548,7 @@ Describe 'all_nodes_up'
   Include proxmox-upgrade-cluster.sh
 
   It 'calls is_node_up for each node' do
-    invocations="$(mktemp)"
-    is_node_up() { echo "$1" >> "$invocations"; return 0; }
+    record_invocations is_node_up
     cluster_nodes=("pve1" "pve2")
 
     When call all_nodes_up cluster_nodes
@@ -555,8 +563,7 @@ Describe 'all_nodes_proxmox'
   Include proxmox-upgrade-cluster.sh
 
   It 'calls is_node_proxmox for each node' do
-    invocations="$(mktemp)"
-    is_node_proxmox() { echo "$1" >> "$invocations"; return 0; }
+    record_invocations is_node_proxmox
     cluster_nodes=("pve1" "pve2")
 
     When call all_nodes_proxmox cluster_nodes
@@ -571,8 +578,7 @@ Describe 'any_nodes_running_tasks'
   Include proxmox-upgrade-cluster.sh
 
   It 'calls node_not_running_task for each node' do
-    invocations="$(mktemp)"
-    node_not_running_task() { echo "$1" >> "$invocations"; return 0; }
+    record_invocations node_not_running_task
     cluster_nodes=("pve1" "pve2")
 
     When call any_nodes_running_tasks cluster_nodes
