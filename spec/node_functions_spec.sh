@@ -398,7 +398,7 @@ End
 Describe 'is_node_up'
   Include proxmox-upgrade-cluster.sh
 
-  verbose=3
+  Before 'verbose=3'
 
   It 'returns success when node is up' do
     Mock node_ssh

@@ -1,7 +1,7 @@
 Describe 'node_enter_maintenance'
   Include proxmox-upgrade-cluster.sh
 
-  verbose=1
+  Before 'verbose=1'
 
   It 'skips when use_maintenance_mode is false' do
     use_maintenance_mode=false
