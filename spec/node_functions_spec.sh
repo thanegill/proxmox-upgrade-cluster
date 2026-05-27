@@ -214,6 +214,20 @@ make_manager_status_pvesh() {
   node_pvesh() { echo "$_mgr_status_json"; }
 }
 
+# Build a node_ssh mock that responds to `hostname` with a fixed value and
+# silently no-ops every other command. Use for node_get_mode tests where
+# the ssh target ($node) and the remote hostname differ (e.g. ssh-by-IP).
+#
+#   make_hostname_node_ssh pve-prod-1
+#
+# Same global-closure rationale as the helpers above.
+make_hostname_node_ssh() {
+  _hostname_value=$1
+  node_ssh() {
+    [[ "$2" == 'hostname' ]] && echo "$_hostname_value"
+  }
+}
+
 Describe 'node_get_offline_count'
   Include proxmox-upgrade-cluster.sh
 
@@ -234,7 +248,7 @@ Describe 'node_get_mode'
   Include proxmox-upgrade-cluster.sh
 
   It 'returns node mode from pvesh output' do
-    node_ssh() { echo 'pve1'; }
+    make_hostname_node_ssh pve1
     make_manager_status_pvesh pve1 online
     When call node_get_mode 'pve1'
     The output should eq 'online'
@@ -243,34 +257,28 @@ Describe 'node_get_mode'
   It 'looks up the remote hostname via ssh, not the ssh-target argument' do
     # $node ("10.0.0.4") is the ssh target; the actual hostname returned by
     # `hostname` on the remote ("pve-prod-1") is what indexes node_status.
-    node_ssh() {
-      [[ "$2" == 'hostname' ]] && echo 'pve-prod-1'
-    }
+    make_hostname_node_ssh pve-prod-1
     make_manager_status_pvesh pve-prod-1 maintenance
     When call node_get_mode '10.0.0.4'
     The output should eq 'maintenance'
   End
 
   It 'handles hostnames containing dots without breaking the jq filter' do
-    node_ssh() {
-      [[ "$2" == 'hostname' ]] && echo 'pve.dc1.example.com'
-    }
+    make_hostname_node_ssh pve.dc1.example.com
     make_manager_status_pvesh pve.dc1.example.com online
     When call node_get_mode 'pve1'
     The output should eq 'online'
   End
 
   It 'handles hostnames that start with a digit' do
-    node_ssh() {
-      [[ "$2" == 'hostname' ]] && echo '1node-prod'
-    }
+    make_hostname_node_ssh 1node-prod
     make_manager_status_pvesh 1node-prod online
     When call node_get_mode 'pve1'
     The output should eq 'online'
   End
 
   It 'does not leak $hostname into the caller scope' do
-    node_ssh() { echo 'pve1'; }
+    make_hostname_node_ssh pve1
     make_manager_status_pvesh pve1 online
     leak_check() {
       unset hostname
