@@ -522,9 +522,31 @@ node_upgrade() {
 
 node_needs_reboot() {
   local node=${1?}
+  local expected_kernel booted_kernel
 
-  expected_kernel="$(node_ssh "$node" 'grep vmlinuz /boot/grub/grub.cfg' | head -1 | awk '{ print $2 }' | sed -e 's%/boot/vmlinuz-%%;s%/ROOT/pve-1@%%')"
   booted_kernel=$(node_ssh "$node" 'uname -r')
+
+  if node_ssh "$node" 'hash proxmox-boot-tool'; then
+    # Manually pinned kernels override the automatic list; otherwise the
+    # highest-versioned automatic entry is what boots next. Parse locally
+    # to keep the remote command quoting simple.
+    expected_kernel=$(node_ssh "$node" 'proxmox-boot-tool kernel list' | awk '
+      /^Manually selected kernels:/{s="m";next}
+      /^Automatically selected kernels:/{s="a";next}
+      s=="m" && /^[0-9]/{m[++mc]=$0}
+      s=="a" && /^[0-9]/{a[++ac]=$0}
+      END {
+        if (mc) for(i=1;i<=mc;i++) print m[i]
+        else for(i=1;i<=ac;i++) print a[i]
+      }
+    ' | sort -V | tail -n1)
+  else
+    # Fallback for older installs without proxmox-boot-tool — parse grub.cfg.
+    # The /ROOT/pve-1@ strip handles the default ZFS root dataset name.
+    expected_kernel=$(node_ssh "$node" 'grep vmlinuz /boot/grub/grub.cfg' \
+      | head -1 | awk '{ print $2 }' \
+      | sed -e 's%/boot/vmlinuz-%%;s%/ROOT/pve-1@%%')
+  fi
 
   test "$expected_kernel" != "$booted_kernel"
 }
