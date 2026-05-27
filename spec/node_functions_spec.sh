@@ -399,6 +399,47 @@ Describe 'node_needs_reboot'
       When call node_needs_reboot 'pve1'
       The status should be failure
     End
+
+    It 'parses indented kernel entries (auto list) — needs-reboot=no when running matches latest' do
+      node_ssh() {
+        case "$2" in
+          'uname -r') echo '7.0.2-3-pve' ;;
+          'hash proxmox-boot-tool') return 0 ;;
+          'proxmox-boot-tool kernel list')
+            printf '%s\n' \
+              'Manually selected kernels:' \
+              'None.' \
+              '' \
+              'Automatically selected kernels:' \
+              '        6.17.13-8-pve' \
+              '        7.0.2-2-pve' \
+              '        7.0.2-3-pve' ;;
+        esac
+      }
+
+      When call node_needs_reboot 'pve1'
+      The status should be failure
+    End
+
+    It 'parses indented kernel entries (manual pin) — needs-reboot=no when running matches pin' do
+      node_ssh() {
+        case "$2" in
+          'uname -r') echo '6.17.13-8-pve' ;;
+          'hash proxmox-boot-tool') return 0 ;;
+          'proxmox-boot-tool kernel list')
+            printf '%s\n' \
+              'Manually selected kernels:' \
+              '        6.17.13-8-pve' \
+              '' \
+              'Automatically selected kernels:' \
+              '        6.17.13-8-pve' \
+              '        7.0.2-3-pve' ;;
+        esac
+      }
+
+      When call node_needs_reboot 'pve1'
+      The status should be failure
+    End
   End
 
   Describe 'grub.cfg fallback (no proxmox-boot-tool)' do

@@ -529,11 +529,13 @@ node_needs_reboot() {
     # Manually pinned kernels override the automatic list; otherwise the
     # highest-versioned automatic entry is what boots next. Parse locally
     # to keep the remote command quoting simple.
+    # Tolerate optional leading whitespace — `proxmox-boot-tool kernel list`
+    # indents kernel entries on some installs.
     expected_kernel=$(node_ssh "$node" 'proxmox-boot-tool kernel list' | awk '
       /^Manually selected kernels:/{s="m";next}
       /^Automatically selected kernels:/{s="a";next}
-      s=="m" && /^[0-9]/{m[++mc]=$0}
-      s=="a" && /^[0-9]/{a[++ac]=$0}
+      s=="m" && /^[[:space:]]*[0-9]/{m[++mc]=$1}
+      s=="a" && /^[[:space:]]*[0-9]/{a[++ac]=$1}
       END {
         if (mc) for(i=1;i<=mc;i++) print m[i]
         else for(i=1;i<=ac;i++) print a[i]
