@@ -173,8 +173,14 @@ wait_all_succeed() {
   local -A pids
 
   for arg in "${args[@]}"; do
-    LOG_PREFIX="$(test $verbose -ge 4 && echo "[${BASHPID}]${LOG_PREFIX:-}" )" \
-      "$cmd" "$arg" &
+    (
+      # Inside the subshell BASHPID matches the parent's $!, so log lines
+      # tagged with [pid] line up with pids[$pid] entries below.
+      if [[ $verbose -ge 4 ]]; then
+        LOG_PREFIX="[${BASHPID}]${LOG_PREFIX:-}"
+      fi
+      "$cmd" "$arg"
+    ) &
     local pid=$!
     pids["$pid"]="$cmd $arg"
     log_prefix $pid log_prefix "${FUNCNAME[0]}" log_debug3 "Started Job: \`$cmd $arg\`"
