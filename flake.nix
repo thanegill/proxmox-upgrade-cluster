@@ -32,6 +32,7 @@
 
               nativeBuildInputs = with pkgs; [
                 makeWrapper
+                shfmt
               ];
 
               buildInputs = with pkgs; [
@@ -47,6 +48,9 @@
               '';
 
               checkPhase = ''
+                # Format check first — a malformed script wouldn't behave the
+                # way the tests expect anyway, so fail fast.
+                shfmt -d -i 2 -ci $src/proxmox-upgrade-cluster.sh
                 shellspec -c $src --format=progress
               '';
             };
@@ -61,6 +65,7 @@
                 jq
                 shellcheck
                 shellspec
+                shfmt
               ])
               # kcov drives `shellspec --kcov` for line/branch coverage. The
               # upstream package only builds on Linux, so the dev shell on

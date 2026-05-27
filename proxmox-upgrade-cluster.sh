@@ -27,7 +27,6 @@ declare -a cluster_nodes=()
 declare -a upgrade_nodes=()
 declare -a ssh_options=()
 
-
 log_output() {
   cat - >&2
 }
@@ -201,7 +200,7 @@ wait_all_succeed() {
     log_prefix "$pid" log_prefix "${FUNCNAME[0]}" log_debug3 "Finished Job: \`$cmd\` exit: $cmd_exit"
 
     if [[ $cmd_exit -gt 0 ]]; then
-      (( failed_count += 1 ))
+      ((failed_count += 1))
       log_prefix "$pid" log_prefix "${FUNCNAME[0]}" log_error "Job Error: \`$cmd\` exit: $cmd_exit"
     fi
   done
@@ -214,16 +213,20 @@ local_ssh() {
 }
 
 node_ssh() {
-  local host=${1?}; shift
-  local cmd=${1?}; shift
+  local host=${1?}
+  shift
+  local cmd=${1?}
+  shift
   log_prefix "$host" log_debug "Running command '$cmd'"
 
   local_ssh "$host" "${ssh_options[@]}" "$@" "$cmd" 2> >(log_prefix "$host" log_pipe_level 3 "[stderr]")
 }
 
 node_ssh_no_op() {
-  local node=${1?}; shift
-  local cmd=${1?}; shift
+  local node=${1?}
+  shift
+  local cmd=${1?}
+  shift
   if [[ "$dry_run" = true ]]; then
     log_prefix "NO-OP" log_prefix "$node" log_warning " Not running '$cmd'"
     return 0
@@ -377,8 +380,8 @@ node_get_mode() {
   hostname=$(node_ssh "$node" hostname)
   # Pass hostname via --arg so values containing '.', leading digits, or other
   # jq-syntax characters don't break the filter.
-  node_pvesh "$node" 'cluster/ha/status/manager_status' \
-    | jq -rc --arg name "$hostname" '.manager_status.node_status[$name]'
+  node_pvesh "$node" 'cluster/ha/status/manager_status' |
+    jq -rc --arg name "$hostname" '.manager_status.node_status[$name]'
 }
 
 node_service_running() {
@@ -451,7 +454,7 @@ node_not_running_task() {
   local -i task_count
   task_count=$(node_number_of_running_tasks "$node")
   log_prefix "${FUNCNAME[0]}" log_prefix "$node" log_debug "Task Count: $task_count"
-  if (( task_count > 0 )); then
+  if ((task_count > 0)); then
     log_prefix "$node" log_info "Running a task. Task Count: $task_count"
     return 1
   fi
@@ -577,9 +580,9 @@ node_needs_reboot() {
   else
     # Fallback for older installs without proxmox-boot-tool — parse grub.cfg.
     # The /ROOT/pve-1@ strip handles the default ZFS root dataset name.
-    expected_kernel=$(node_ssh "$node" 'grep vmlinuz /boot/grub/grub.cfg' \
-      | head -1 | awk '{ print $2 }' \
-      | sed -e 's%/boot/vmlinuz-%%;s%/ROOT/pve-1@%%')
+    expected_kernel=$(node_ssh "$node" 'grep vmlinuz /boot/grub/grub.cfg' |
+      head -1 | awk '{ print $2 }' |
+      sed -e 's%/boot/vmlinuz-%%;s%/ROOT/pve-1@%%')
   fi
 
   test "$expected_kernel" != "$booted_kernel"
@@ -624,7 +627,7 @@ node_reboot() {
   log_prefix "$node" log_status "Waiting up to ${reboot_timeout}s for node to come back up..."
   SECONDS=0
   until is_node_up "$node"; do
-    if (( SECONDS >= reboot_timeout )); then
+    if ((SECONDS >= reboot_timeout)); then
       log_progress_end
       log_prefix "$node" log_error "Timed out after ${reboot_timeout}s waiting for '$node' to come back up."
       return 1
@@ -700,7 +703,7 @@ node_run_update_sequence() {
 }
 
 usage() {
-cat << EOF
+  cat <<EOF
 NAME
     $program_name - Perform a rolling upgrade for a Proxmox cluster
 
@@ -835,26 +838,26 @@ process_args() {
     log_error "No arguments passed."
     usage
     exit 1
-  fi;
+  fi
 
   while [[ $# -ne 0 ]]; do
     case "${1?}" in
-      --cluster-node|-c)
+      --cluster-node | -c)
         shift
         error_on_no_arg "--cluster-node|-c" "${1:-}"
         cluster_node="$1"
         ;;
-      --node|-n)
+      --node | -n)
         shift
         error_on_no_arg "--node|-n" "${1:-}"
         cluster_nodes+=("$1")
         ;;
-      --ssh-user|-u)
+      --ssh-user | -u)
         shift
         error_on_no_arg "--ssh-user" "${1:-}"
         ssh_user="$1"
         ;;
-      --ssh-opt|-o)
+      --ssh-opt | -o)
         shift
         error_on_no_arg "--ssh-opt" "${1:-}" true
         ssh_options+=("$1")
@@ -905,7 +908,7 @@ process_args() {
       -+(v))
         verbose=$((verbose + ${#1} - 1))
         ;;
-      --help|-h)
+      --help | -h)
         usage
         exit 0
         ;;

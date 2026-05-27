@@ -8,8 +8,17 @@ nix develop -c shellspec spec/file_name.sh  # Specific test file
 nix develop -c shellspec --dry-run          # List examples without running
 nix develop -c shellspec --random=specfiles # Verify order-independence
 nix develop -c shellcheck proxmox-upgrade-cluster.sh  # Static analysis
+nix develop -c shfmt -d -i 2 -ci proxmox-upgrade-cluster.sh  # Format check
+nix develop -c shfmt -w -i 2 -ci proxmox-upgrade-cluster.sh  # Apply formatting
 nix build .#default                         # Build the script via flake
 ```
+
+`shfmt` flags: `-i 2` (2-space indent), `-ci` (indent case patterns under
+their `case`). Same flags are wired into `nix build`'s `checkPhase` so a
+PR that diverges from the format won't build. The flags are intentionally
+NOT applied to `spec/*.sh` — those files use the ShellSpec DSL
+(`Describe`/`It`/`When`/`The`/`End`) which shfmt doesn't recognise and
+would mangle.
 
 ### Coverage (Linux only)
 
