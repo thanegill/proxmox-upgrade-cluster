@@ -325,11 +325,25 @@ Describe 'process_args error cases'
     The error should include 'unknown option'
   End
 
-  It 'exits with error when both --cluster-node and --node are passed' do
+  It 'exits with error when --cluster-node precedes --node' do
     verbose=1
     When run process_args '--cluster-node' 'pve1' '--node' 'pve2'
     The status should be failure
     The error should include 'Only one of'
+  End
+
+  It 'exits with error when --node precedes --cluster-node' do
+    verbose=1
+    When run process_args '--node' 'pve1' '--cluster-node' 'pve2'
+    The status should be failure
+    The error should include 'Only one of'
+  End
+
+  It 'exits with error when neither --cluster-node nor --node is passed' do
+    verbose=1
+    When run process_args '--dry-run'
+    The status should be failure
+    The error should include 'One of --cluster-node, or --nodes must be used'
   End
 End
 
