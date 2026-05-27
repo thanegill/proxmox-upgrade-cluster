@@ -654,14 +654,33 @@ node_run_update_sequence() {
   local node=${1?}
   local in_maintenance=false
 
-  # Warn the operator if we abort while the node may still be in maintenance.
-  # The trap does not auto-recover — the operator must investigate the failure
-  # before returning the node to service. Do NOT enable `set -E` here: errtrace
-  # propagates this trap into process substitutions (e.g. `tee >(jq | ...)`
-  # inside node_pvesh) where it fires on benign internal non-zero exits.
-  # Without errtrace the trap still fires correctly on the direct simple
-  # commands below — node_pre_upgrade, node_upgrade, etc. — when they
-  # propagate a failure back to this scope.
+  # Maintenance-warning trap.
+  #
+  # WHAT
+  #   If the function aborts (via errexit propagating from any of the four
+  #   stage calls below) while `in_maintenance` is true, log a warning that
+  #   the node may still be in HA maintenance mode and tell the operator how
+  #   to clear it manually. The trap does NOT attempt recovery — operators
+  #   need to investigate the upstream failure before returning the node to
+  #   service, and an automatic exit-maintenance could mask or race that.
+  #
+  # WHY no `set -E` (errtrace) here
+  #   errtrace propagates ERR traps into nested functions, command
+  #   substitutions, and process substitutions. node_pvesh internally pipes
+  #   through `tee >(jq | log_pipe_level 3 ...)`; the process substitution
+  #   regularly exits non-zero on benign conditions (e.g. log_pipe_level
+  #   returning early at verbose<3 closes the pipe, jq gets SIGPIPE). With
+  #   errtrace on, the trap fired inside every such process sub and emitted
+  #   a spurious "may still be in maintenance" warning on every node, every
+  #   upgrade — even when the parent flow succeeded cleanly (see the smoke
+  #   test in 59c518d -> 2c544f4). Without errtrace the trap only fires at
+  #   THIS scope, when one of the direct stage calls (node_pre_upgrade,
+  #   node_upgrade, node_reboot, node_post_upgrade) returns non-zero — which
+  #   is exactly the signal we care about.
+  #
+  # The "does not enable errtrace" test in spec/upgrade_sequence_spec.sh
+  # pins this contract: changing the function to `set -E` would re-introduce
+  # the spurious-warning regression.
   # shellcheck disable=SC2064 # $node is intentionally expanded at trap-install
   trap "if [[ \"\$in_maintenance\" == true ]]; then
     log_prefix '$node' log_warning \"Upgrade aborted while node may still be in maintenance mode. Clear manually after investigation: ha-manager crm-command node-maintenance disable <hostname>\"
