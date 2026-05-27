@@ -821,6 +821,12 @@ main() {
     fi
     mapfile -t cluster_nodes < <(get_cluster_nodes "$cluster_node")
   fi
+
+  if [[ ${#cluster_nodes[@]} -eq 0 ]]; then
+    log_error "No cluster nodes to check. Pass --node, or use --cluster-node with a node that returns cluster members."
+    exit 1
+  fi
+
   log_success "Using '${cluster_nodes[*]}' as all nodes to check."
 
   log_status "Checking if any nodes are currently down..."
