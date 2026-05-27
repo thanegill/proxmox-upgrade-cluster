@@ -424,175 +424,133 @@ End
 Describe 'node_needs_reboot'
   Include proxmox-upgrade-cluster.sh
 
+  # Helpers install a `node_ssh` mock parameterised on running kernel + the
+  # remote `proxmox-boot-tool kernel list` / grub.cfg output. Globals are
+  # used (not function-local) because function definitions in bash don't
+  # form closures — the inner function reads the variables at call time,
+  # not at definition time, so they need to live at script-wide scope.
+
+  make_pbt_node_ssh() {
+    # $1 = uname -r, $@ = lines of `proxmox-boot-tool kernel list` output.
+    _pbt_uname=$1; shift
+    _pbt_kernel_list=$(printf '%s\n' "$@")
+    node_ssh() {
+      case "$2" in
+        'uname -r') echo "$_pbt_uname" ;;
+        'hash proxmox-boot-tool') return 0 ;;
+        'proxmox-boot-tool kernel list') printf '%s\n' "$_pbt_kernel_list" ;;
+      esac
+    }
+  }
+
+  make_grub_node_ssh() {
+    # $1 = uname -r, $@ = lines emitted by `grep vmlinuz /boot/grub/grub.cfg`.
+    _grub_uname=$1; shift
+    _grub_lines=$(printf '%s\n' "$@")
+    node_ssh() {
+      case "$2" in
+        'uname -r') echo "$_grub_uname" ;;
+        'hash proxmox-boot-tool') return 1 ;;
+        *grep*) printf '%s\n' "$_grub_lines" ;;
+      esac
+    }
+  }
+
   Describe 'proxmox-boot-tool branch' do
     It 'returns failure when running kernel matches the latest auto kernel' do
-      node_ssh() {
-        case "$2" in
-          'uname -r') echo '7.0.2-3-pve' ;;
-          'hash proxmox-boot-tool') return 0 ;;
-          'proxmox-boot-tool kernel list')
-            printf '%s\n' \
-              'Manually selected kernels:' \
-              'None.' \
-              '' \
-              'Automatically selected kernels:' \
-              '6.17.13-8-pve' \
-              '7.0.2-2-pve' \
-              '7.0.2-3-pve' ;;
-        esac
-      }
-
+      make_pbt_node_ssh '7.0.2-3-pve' \
+        'Manually selected kernels:' 'None.' '' \
+        'Automatically selected kernels:' '6.17.13-8-pve' '7.0.2-2-pve' '7.0.2-3-pve'
       When call node_needs_reboot 'pve1'
       The status should be failure
     End
 
     It 'returns success when running kernel is older than the latest auto kernel' do
-      node_ssh() {
-        case "$2" in
-          'uname -r') echo '7.0.2-2-pve' ;;
-          'hash proxmox-boot-tool') return 0 ;;
-          'proxmox-boot-tool kernel list')
-            printf '%s\n' \
-              'Manually selected kernels:' \
-              'None.' \
-              '' \
-              'Automatically selected kernels:' \
-              '7.0.2-2-pve' \
-              '7.0.2-3-pve' ;;
-        esac
-      }
-
+      make_pbt_node_ssh '7.0.2-2-pve' \
+        'Manually selected kernels:' 'None.' '' \
+        'Automatically selected kernels:' '7.0.2-2-pve' '7.0.2-3-pve'
       When call node_needs_reboot 'pve1'
       The status should be success
     End
 
     It 'honors a manually pinned kernel even when a higher auto kernel exists' do
       # Pinned to an older kernel; running it = no reboot needed.
-      node_ssh() {
-        case "$2" in
-          'uname -r') echo '6.17.13-8-pve' ;;
-          'hash proxmox-boot-tool') return 0 ;;
-          'proxmox-boot-tool kernel list')
-            printf '%s\n' \
-              'Manually selected kernels:' \
-              '6.17.13-8-pve' \
-              '' \
-              'Automatically selected kernels:' \
-              '6.17.13-8-pve' \
-              '7.0.2-3-pve' ;;
-        esac
-      }
-
+      make_pbt_node_ssh '6.17.13-8-pve' \
+        'Manually selected kernels:' '6.17.13-8-pve' '' \
+        'Automatically selected kernels:' '6.17.13-8-pve' '7.0.2-3-pve'
       When call node_needs_reboot 'pve1'
       The status should be failure
     End
 
     It 'returns success when pinned kernel differs from running kernel' do
-      node_ssh() {
-        case "$2" in
-          'uname -r') echo '7.0.2-3-pve' ;;
-          'hash proxmox-boot-tool') return 0 ;;
-          'proxmox-boot-tool kernel list')
-            printf '%s\n' \
-              'Manually selected kernels:' \
-              '6.17.13-8-pve' \
-              '' \
-              'Automatically selected kernels:' \
-              '6.17.13-8-pve' \
-              '7.0.2-3-pve' ;;
-        esac
-      }
-
+      make_pbt_node_ssh '7.0.2-3-pve' \
+        'Manually selected kernels:' '6.17.13-8-pve' '' \
+        'Automatically selected kernels:' '6.17.13-8-pve' '7.0.2-3-pve'
       When call node_needs_reboot 'pve1'
       The status should be success
     End
 
     It 'picks the highest auto kernel even when the list is unsorted' do
-      node_ssh() {
-        case "$2" in
-          'uname -r') echo '7.0.2-3-pve' ;;
-          'hash proxmox-boot-tool') return 0 ;;
-          'proxmox-boot-tool kernel list')
-            printf '%s\n' \
-              'Manually selected kernels:' \
-              'None.' \
-              '' \
-              'Automatically selected kernels:' \
-              '7.0.2-3-pve' \
-              '6.17.13-8-pve' \
-              '7.0.2-2-pve' ;;
-        esac
-      }
-
+      make_pbt_node_ssh '7.0.2-3-pve' \
+        'Manually selected kernels:' 'None.' '' \
+        'Automatically selected kernels:' '7.0.2-3-pve' '6.17.13-8-pve' '7.0.2-2-pve'
       When call node_needs_reboot 'pve1'
       The status should be failure
     End
 
-    It 'parses indented kernel entries (auto list) — needs-reboot=no when running matches latest' do
-      node_ssh() {
-        case "$2" in
-          'uname -r') echo '7.0.2-3-pve' ;;
-          'hash proxmox-boot-tool') return 0 ;;
-          'proxmox-boot-tool kernel list')
-            printf '%s\n' \
-              'Manually selected kernels:' \
-              'None.' \
-              '' \
-              'Automatically selected kernels:' \
-              '        6.17.13-8-pve' \
-              '        7.0.2-2-pve' \
-              '        7.0.2-3-pve' ;;
-        esac
-      }
-
+    It 'parses indented kernel entries (auto list)' do
+      make_pbt_node_ssh '7.0.2-3-pve' \
+        'Manually selected kernels:' 'None.' '' \
+        'Automatically selected kernels:' '        6.17.13-8-pve' '        7.0.2-2-pve' '        7.0.2-3-pve'
       When call node_needs_reboot 'pve1'
       The status should be failure
     End
 
-    It 'parses indented kernel entries (manual pin) — needs-reboot=no when running matches pin' do
-      node_ssh() {
-        case "$2" in
-          'uname -r') echo '6.17.13-8-pve' ;;
-          'hash proxmox-boot-tool') return 0 ;;
-          'proxmox-boot-tool kernel list')
-            printf '%s\n' \
-              'Manually selected kernels:' \
-              '        6.17.13-8-pve' \
-              '' \
-              'Automatically selected kernels:' \
-              '        6.17.13-8-pve' \
-              '        7.0.2-3-pve' ;;
-        esac
-      }
-
+    It 'parses indented kernel entries (manual pin)' do
+      make_pbt_node_ssh '6.17.13-8-pve' \
+        'Manually selected kernels:' '        6.17.13-8-pve' '' \
+        'Automatically selected kernels:' '        6.17.13-8-pve' '        7.0.2-3-pve'
       When call node_needs_reboot 'pve1'
       The status should be failure
+    End
+
+    It 'reports needs-reboot when both kernel sections are effectively empty' do
+      # ESP not configured or pbt brand-new; awk parser finds no kernel
+      # entries and expected_kernel becomes empty. "" != "<running>" so
+      # the function says "needs reboot" — conservative and the right
+      # default (we can't prove the running kernel matches the target).
+      make_pbt_node_ssh '7.0.2-3-pve' \
+        'Manually selected kernels:' 'None.' '' \
+        'Automatically selected kernels:' 'None.'
+      When call node_needs_reboot 'pve1'
+      The status should be success
     End
   End
 
   Describe 'grub.cfg fallback (no proxmox-boot-tool)' do
     It 'returns success when kernels differ' do
-      node_ssh() {
-        case "$2" in
-          'uname -r') echo '6.1.0-pve' ;;
-          'hash proxmox-boot-tool') return 1 ;;
-          *grep*) echo 'linux   /boot/vmlinuz-6.2.0-pve root=...' ;;
-        esac
-      }
-
+      make_grub_node_ssh '6.1.0-pve' \
+        'linux   /boot/vmlinuz-6.2.0-pve root=...'
       When call node_needs_reboot 'pve1'
       The status should be success
     End
 
     It 'returns failure when kernels match' do
-      node_ssh() {
-        case "$2" in
-          'uname -r') echo '6.2.0-pve' ;;
-          'hash proxmox-boot-tool') return 1 ;;
-          *grep*) echo 'linux   /boot/vmlinuz-6.2.0-pve root=...' ;;
-        esac
-      }
+      make_grub_node_ssh '6.2.0-pve' \
+        'linux   /boot/vmlinuz-6.2.0-pve root=...'
+      When call node_needs_reboot 'pve1'
+      The status should be failure
+    End
 
+    It 'picks the first vmlinuz line when grub.cfg has multiple entries' do
+      # The script uses `head -1` on the grep output, so only the first
+      # vmlinuz line is consulted. Running kernel matching the first → no
+      # reboot needed even though older kernels also appear later in the
+      # file.
+      make_grub_node_ssh '6.2.0-pve' \
+        'linux   /boot/vmlinuz-6.2.0-pve root=...' \
+        'linux   /boot/vmlinuz-6.1.0-pve root=...' \
+        'linux   /boot/vmlinuz-6.0.0-pve root=...'
       When call node_needs_reboot 'pve1'
       The status should be failure
     End
