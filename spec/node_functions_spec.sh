@@ -134,6 +134,48 @@ Describe 'sort_nodes_by_guest_count'
     The output should eq 'soloN'
     The error should include 'Reordering upgrade sequence'
   End
+
+  It 'leaves an empty array empty' do
+    # Defensive: the function reads `${nodes[@]}` so an empty array is
+    # fine, the for-loop just doesn't run, and `mapfile -t sorted` reads
+    # an empty stream and stays empty.
+    node_get_running_guest_count() { echo 'should-not-be-called' >&2; }
+
+    capture() {
+      local -a upgrade_nodes=()
+      sort_nodes_by_guest_count upgrade_nodes
+      echo "len=${#upgrade_nodes[@]}"
+    }
+
+    When call capture
+    The output should eq 'len=0'
+    The error should not include 'should-not-be-called'
+  End
+
+  It 'sorts correctly when counts exceed 255 (no mod-256 regression)' do
+    # Same regression class as node_not_running_task's old
+    # `return $task_count` bug — guard against any future refactor
+    # that mistakenly treats the count as an exit code.
+    node_get_running_guest_count() {
+      case "$1" in
+        pveBig)   echo '512' ;;
+        pveSmall) echo '7' ;;
+        pveZero)  echo '0' ;;
+      esac
+    }
+
+    capture() {
+      local -a upgrade_nodes=(pveBig pveSmall pveZero)
+      sort_nodes_by_guest_count upgrade_nodes
+      printf '%s\n' "${upgrade_nodes[@]}"
+    }
+
+    When call capture
+    The line 1 of output should eq 'pveZero'
+    The line 2 of output should eq 'pveSmall'
+    The line 3 of output should eq 'pveBig'
+    The error should include 'Reordering upgrade sequence'
+  End
 End
 
 Describe 'node_number_of_running_tasks'
