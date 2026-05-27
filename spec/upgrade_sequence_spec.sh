@@ -166,18 +166,81 @@ End
 
 Describe 'node_run_update_sequence'
   Include proxmox-upgrade-cluster.sh
+  Set errexit:on
 
-  It 'runs all upgrade steps' do
-    called=()
-    node_pre_upgrade() { called+=("pre"); }
-    node_upgrade() { called+=("upgrade"); }
-    node_reboot() { called+=("reboot"); }
-    node_post_upgrade() { called+=("post"); }
+  It 'runs all upgrade steps on the success path without warning' do
+    node_pre_upgrade() { :; }
+    node_upgrade() { :; }
+    node_reboot() { :; }
+    node_post_upgrade() { :; }
 
     When call node_run_update_sequence 'pve1'
     The status should be success
     The error should include 'Starting upgrade'
     The error should include 'Successfully upgraded'
+    The error should not include 'may still be in maintenance'
+  End
+
+  It 'warns about maintenance and does NOT auto-recover when an upgrade step fails' do
+    use_maintenance_mode=true
+    node_pre_upgrade() { :; }
+    node_upgrade() { return 1; }
+    node_reboot() { echo 'should not reach reboot' >&2; }
+    node_post_upgrade() { echo 'should not reach post' >&2; }
+    node_exit_maintenance() { echo 'auto-recovery ran (BAD)' >&2; }
+
+    When run node_run_update_sequence 'pve1'
+    The status should be failure
+    The error should include 'may still be in maintenance mode'
+    The error should include 'ha-manager crm-command node-maintenance disable'
+    The error should not include 'should not reach'
+    The error should not include 'auto-recovery ran'
+  End
+
+  It 'does not warn when use_maintenance_mode is false even on failure' do
+    use_maintenance_mode=false
+    node_pre_upgrade() { :; }
+    node_upgrade() { return 1; }
+    node_reboot() { :; }
+    node_post_upgrade() { :; }
+
+    When run node_run_update_sequence 'pve1'
+    The status should be failure
+    The error should not include 'may still be in maintenance'
+  End
+
+  It 'clears the ERR trap on success so it does not leak across nodes' do
+    node_pre_upgrade() { :; }
+    node_upgrade() { :; }
+    node_reboot() { :; }
+    node_post_upgrade() { :; }
+
+    check_trap() {
+      node_run_update_sequence 'pve1' >/dev/null 2>&1
+      trap -p ERR
+    }
+
+    When call check_trap
+    The output should eq ''
+  End
+
+  It 'does not enable errtrace during the upgrade sequence' do
+    # Regression for the smoke-test bug: with `set -E` (errtrace) the ERR trap
+    # was inherited into process substitutions inside node_pvesh, and benign
+    # internal non-zero exits fired the maintenance warning even though the
+    # parent flow succeeded. Assert errtrace stays off — that's the contract
+    # the trap design relies on.
+    node_pre_upgrade() {
+      [[ $- == *E* ]] && echo "ERRTRACE-LEAKED" >&2
+    }
+    node_upgrade()      { :; }
+    node_reboot()       { :; }
+    node_post_upgrade() { :; }
+
+    When call node_run_update_sequence 'pve1'
+    The status should be success
+    The error should not include 'ERRTRACE-LEAKED'
+    The error should not include 'may still be in maintenance'
   End
 End
 

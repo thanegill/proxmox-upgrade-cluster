@@ -597,12 +597,31 @@ node_post_upgrade() {
 
 node_run_update_sequence() {
   local node=${1?}
+  local in_maintenance=false
+
+  # Warn the operator if we abort while the node may still be in maintenance.
+  # The trap does not auto-recover — the operator must investigate the failure
+  # before returning the node to service. Do NOT enable `set -E` here: errtrace
+  # propagates this trap into process substitutions (e.g. `tee >(jq | ...)`
+  # inside node_pvesh) where it fires on benign internal non-zero exits.
+  # Without errtrace the trap still fires correctly on the direct simple
+  # commands below — node_pre_upgrade, node_upgrade, etc. — when they
+  # propagate a failure back to this scope.
+  # shellcheck disable=SC2064 # $node is intentionally expanded at trap-install
+  trap "if [[ \"\$in_maintenance\" == true ]]; then
+    log_prefix '$node' log_warning \"Upgrade aborted while node may still be in maintenance mode. Clear manually after investigation: ha-manager crm-command node-maintenance disable <hostname>\"
+  fi" ERR
 
   log_prefix "$node" log_success "Starting upgrade."
+  [[ "$use_maintenance_mode" == true ]] && in_maintenance=true
   node_pre_upgrade "$node"
   node_upgrade "$node"
   node_reboot "$node"
   node_post_upgrade "$node"
+  in_maintenance=false
+
+  trap - ERR
+
   log_prefix "$node" log_success "Successfully upgraded."
 }
 
