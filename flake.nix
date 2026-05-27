@@ -18,27 +18,13 @@
 
       perSystem =
         {
-          config,
           self',
-          inputs',
           pkgs,
-          system,
           ...
         }:
         {
-          devShells.default = pkgs.mkShell {
-            name = "proxmox-upgrade-cluster-dev";
-
-            buildInputs = with pkgs; [
-              bash
-              jq
-              shellcheck
-              shellspec
-            ];
-          };
-
-          packages = rec {
-            default = proxmox-upgrade-cluster;
+          packages = {
+            default = self'.packages.proxmox-upgrade-cluster;
             proxmox-upgrade-cluster = pkgs.stdenvNoCC.mkDerivation {
               name = "proxmox-upgrade-cluster";
               src = ./.;
@@ -58,24 +44,24 @@
                 cp $src/proxmox-upgrade-cluster.sh $out/bin/proxmox-upgrade-cluster
                 chmod +x $out/bin/proxmox-upgrade-cluster
               '';
+
+              checkPhase = ''
+                shellspec -c $src --format=progress
+              '';
             };
-
           };
 
-          checks = {
-            shellspec =
-              pkgs.runCommand "shellspec-check"
-                {
-                  nativeBuildInputs = with pkgs; [
-                    bash
-                    jq
-                    shellspec
-                  ];
-                }
-                ''
-                  shellspec -c $src --format=progress
-                '';
+          devShells.default = pkgs.mkShell {
+            name = "proxmox-upgrade-cluster-dev";
+
+            buildInputs = with pkgs; [
+              bash
+              jq
+              shellcheck
+              shellspec
+            ];
           };
+
         };
     };
 }
