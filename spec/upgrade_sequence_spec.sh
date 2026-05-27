@@ -443,13 +443,20 @@ End
 Describe 'apt_update_nodes'
   Include proxmox-upgrade-cluster.sh
 
+  # wait_all_succeed runs each invocation in a background subshell, so
+  # mutations to a `called_nodes=()` array in the mock don't survive back
+  # to the parent. Use a temp-file marker that the subshells append to.
+
   It 'calls node_apt_update for each node' do
-    called_nodes=()
-    node_apt_update() { called_nodes+=("$1"); }
+    invocations="$(mktemp)"
+    node_apt_update() { echo "$1" >> "$invocations"; }
     cluster_nodes=("pve1" "pve2")
 
     When call apt_update_nodes cluster_nodes
     The status should be success
+    The contents of file "$invocations" should include 'pve1'
+    The contents of file "$invocations" should include 'pve2'
+    rm -f "$invocations"
   End
 End
 
@@ -457,12 +464,15 @@ Describe 'all_nodes_up'
   Include proxmox-upgrade-cluster.sh
 
   It 'calls is_node_up for each node' do
-    called_nodes=()
-    is_node_up() { called_nodes+=("$1"); return 0; }
+    invocations="$(mktemp)"
+    is_node_up() { echo "$1" >> "$invocations"; return 0; }
     cluster_nodes=("pve1" "pve2")
 
     When call all_nodes_up cluster_nodes
     The status should be success
+    The contents of file "$invocations" should include 'pve1'
+    The contents of file "$invocations" should include 'pve2'
+    rm -f "$invocations"
   End
 End
 
@@ -470,12 +480,15 @@ Describe 'all_nodes_proxmox'
   Include proxmox-upgrade-cluster.sh
 
   It 'calls is_node_proxmox for each node' do
-    called_nodes=()
-    is_node_proxmox() { called_nodes+=("$1"); return 0; }
+    invocations="$(mktemp)"
+    is_node_proxmox() { echo "$1" >> "$invocations"; return 0; }
     cluster_nodes=("pve1" "pve2")
 
     When call all_nodes_proxmox cluster_nodes
     The status should be success
+    The contents of file "$invocations" should include 'pve1'
+    The contents of file "$invocations" should include 'pve2'
+    rm -f "$invocations"
   End
 End
 
@@ -483,12 +496,15 @@ Describe 'any_nodes_running_tasks'
   Include proxmox-upgrade-cluster.sh
 
   It 'calls node_not_running_task for each node' do
-    called_nodes=()
-    node_not_running_task() { return 0; called_nodes+=("$1"); }
+    invocations="$(mktemp)"
+    node_not_running_task() { echo "$1" >> "$invocations"; return 0; }
     cluster_nodes=("pve1" "pve2")
 
     When call any_nodes_running_tasks cluster_nodes
     The status should be success
+    The contents of file "$invocations" should include 'pve1'
+    The contents of file "$invocations" should include 'pve2'
+    rm -f "$invocations"
   End
 End
 
