@@ -557,6 +557,85 @@ Describe 'get_nodes_upgradeable'
   End
 End
 
+Describe 'get_nodes_needing_reboot'
+  Include proxmox-upgrade-cluster.sh
+
+  It 'emits nodes that need a reboot, one per line, in input order' do
+    node_needs_reboot() {
+      case "$1" in
+        pveA) return 1 ;;
+        pveB) return 0 ;;
+        pveC) return 0 ;;
+      esac
+    }
+    cluster_nodes=("pveA" "pveB" "pveC")
+
+    When call get_nodes_needing_reboot cluster_nodes
+    The line 1 of output should eq 'pveB'
+    The line 2 of output should eq 'pveC'
+    The lines of output should eq 2
+    The error should include 'Reboot required'
+    The error should include 'No reboot required'
+  End
+
+  It 'emits all nodes when every node needs a reboot' do
+    Mock node_needs_reboot
+      exit 0
+    End
+    cluster_nodes=("pve1" "pve2" "pve3")
+
+    When call get_nodes_needing_reboot cluster_nodes
+    The line 1 of output should eq 'pve1'
+    The line 2 of output should eq 'pve2'
+    The line 3 of output should eq 'pve3'
+    The lines of output should eq 3
+    The error should include 'Reboot required'
+  End
+
+  It 'returns empty output when no nodes need a reboot' do
+    Mock node_needs_reboot
+      exit 1
+    End
+    cluster_nodes=("pve1" "pve2")
+
+    When call get_nodes_needing_reboot cluster_nodes
+    The output should eq ''
+    The error should include 'No reboot required'
+  End
+
+  It 'returns empty output when called with an empty array' do
+    Mock node_needs_reboot
+      exit 0
+    End
+    cluster_nodes=()
+
+    When call get_nodes_needing_reboot cluster_nodes
+    The output should eq ''
+  End
+
+  It 'handles a single-element array that needs reboot' do
+    Mock node_needs_reboot
+      exit 0
+    End
+    cluster_nodes=("soloN")
+
+    When call get_nodes_needing_reboot cluster_nodes
+    The output should eq 'soloN'
+    The lines of output should eq 1
+    The error should include 'Reboot required'
+  End
+
+  It 'logs the verbose "Removed from reboot sequence" line at verbose>=1' do
+    verbose=1
+    node_needs_reboot() { [[ "$1" == 'pveSkip' ]] && return 1 || return 0; }
+    cluster_nodes=("pveSkip" "pveKeep")
+
+    When call get_nodes_needing_reboot cluster_nodes
+    The output should eq 'pveKeep'
+    The error should include 'Removed from reboot sequence'
+  End
+End
+
 # Install a stub for $1 that appends its first argument to a temp file
 # and returns 0. The temp-file path is set as `$invocations` for the
 # caller to assert against via `The contents of file "$invocations"`.

@@ -314,6 +314,27 @@ get_nodes_upgradeable() {
   fi
 }
 
+get_nodes_needing_reboot() {
+  local -n nodes=${1?}
+  local -a nodes_to_reboot=()
+
+  for node in "${nodes[@]}"; do
+    if node_needs_reboot "$node"; then
+      log_prefix "$node" log_success "Reboot required."
+      nodes_to_reboot+=("$node")
+    else
+      log_prefix "$node" log_success "No reboot required."
+      log_prefix "$node" log_verbose "Removed from reboot sequence."
+    fi
+  done
+  # Emit one node per line so callers can read into an array via mapfile -t.
+  # Guard against the empty case — printf '%s\n' "${empty[@]}" would emit
+  # a single blank line.
+  if [[ ${#nodes_to_reboot[@]} -gt 0 ]]; then
+    printf '%s\n' "${nodes_to_reboot[@]}"
+  fi
+}
+
 node_apt_update() {
   local node=${1?}
   node_ssh "$node" 'DEBIAN_FRONTEND=noninteractive apt-get update' | log_pipe_level 1 "[$node][apt]"
