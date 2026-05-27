@@ -34,9 +34,9 @@ NAME
     proxmox-upgrade-cluster.sh - Perform a rolling upgrade for a Proxmox cluster
 
 SYNOPSIS
-    proxmox-upgrade-cluster.sh [OPTIONS] --cluster-node|-c [NODE]
+    proxmox-upgrade-cluster.sh [OPTIONS] --cluster-node HOSTNAME
 
-    proxmox-upgrade-cluster.sh [OPTIONS] --node|-n [NODE] -n [NODE] [...]
+    proxmox-upgrade-cluster.sh [OPTIONS] --node HOSTNAME [--node HOSTNAME]...
 
     proxmox-upgrade-cluster.sh --help
 
@@ -55,22 +55,26 @@ OPTIONS
         Options to pass to ssh. Can be passed multiple times.
 
     --ssh-allow-password-auth
-        Default is to force SSH key auth with 'PasswordAuthentication=no'. Set
-        this to allow ssh password auth. This is strongly recommended against.
-        You may have to enter your password hundreds of times.
+        Allow ssh password auth. Default is to force SSH key auth with
+        'PasswordAuthentication=no'. Strongly recommended against — you may
+        have to enter your password hundreds of times.
 
     --cluster-node-use-ip
         When using '--cluster-node', use the IP address instead of the node name.
 
     --dry-run
-        Flag to enable a dry run mode where no actions are taken.
+        Enable dry-run mode; no destructive actions are taken.
 
     --pkg-reinstall PACKAGE
         Package(s) on the hosts to reinstall with 'apt-get reinstall' post
-        upgrade. Can be passed multiple times. Defaults to "".
+        upgrade. Can be passed multiple times. Defaults to none.
 
     --force-upgrade
-        Flag to force all nodes to upgrade, and not only those with available upgrades.
+        Force all nodes to upgrade, and not only those with available upgrades.
+
+    --no-maintenance-mode
+        Don't set node to maintenance mode when upgrading. This will disable
+        HA migrations. Default: maintenance mode is enabled.
 
     --force-reboot
         Force all nodes to be rebooted during upgrade, and not only those that
@@ -81,9 +85,9 @@ OPTIONS
         Skip the reboot step entirely, even when a new kernel is staged for
         boot. Mutually exclusive with --force-reboot.
 
-    --no-maintenance-mode
-        Don't set node to maintenance mode when upgrading. This will disable
-        HA migrations.
+    --reboot-timeout SECONDS
+        Maximum number of seconds to wait for a node to come back up after a
+        reboot before aborting the upgrade. Defaults to 900 (15 minutes).
 
     --allow-running-guests
         Disable check for running guests on the node prior to upgrade.
@@ -96,13 +100,9 @@ OPTIONS
         ascending by running guest count. Default is to sort so the node
         with the fewest guests upgrades first.
 
-    --reboot-timeout SECONDS
-        Maximum number of seconds to wait for a node to come back up after a
-        reboot before aborting the upgrade. Defaults to 900 (15 minutes).
-
     -v, --verbose
-        Log actions and details to stdout. When multiple -v options are given,
-        enable verbose logging for de-bugging purposes.
+        Log actions and details to stdout. Use multiple times (e.g. -vv) for
+        increasingly detailed output intended for debugging.
 
     -h, --help
         Show this message.
@@ -117,6 +117,13 @@ EXAMPLE
     Upgrade only nodes pve2, pve3:
 
         proxmox-upgrade-cluster.sh -n pve2 -n pve3
+
+
+    Reach the cluster through a bastion via an ssh ProxyCommand. Pass each
+    ssh option as its own --ssh-opt value:
+
+        proxmox-upgrade-cluster.sh -c pve1 \
+            --ssh-opt "-o ProxyCommand=ssh -W %h:%p bastion.example.com"
 ```
 
 ## Example very-verbose dry run
