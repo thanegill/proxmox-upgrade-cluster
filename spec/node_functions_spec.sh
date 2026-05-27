@@ -425,41 +425,51 @@ Describe 'node_ssh_no_op'
   End
 End
 
+# Build a node_pvesh mock that returns a JSON array of guest entries with
+# the given status values. Usage:
+#
+#   make_status_array_pvesh running stopped running   # 3-element array
+#   make_status_array_pvesh                            # empty array
+#
+# Same global-closure pattern as make_manager_status_pvesh.
+make_status_array_pvesh() {
+  local entries=()
+  local s
+  for s in "$@"; do entries+=("{\"status\":\"$s\"}"); done
+  _status_array_json="[$(IFS=,; echo "${entries[*]}")]"
+  node_pvesh() { echo "$_status_array_json"; }
+}
+
 Describe 'node_get_running_count' do
   Include proxmox-upgrade-cluster.sh
 
   It 'returns count of running lxc containers excluding stopped' do
-    node_pvesh() { echo '[{"status":"running"},{"status":"stopped"}]'; }
-
+    make_status_array_pvesh running stopped
     When call node_get_running_count 'pve1' 'lxc'
     The output should eq '1'
   End
 
   It 'returns count of running qemu guests excluding stopped' do
-    node_pvesh() { echo '[{"status":"running"},{"status":"stopped"},{"status":"running"}]'; }
-
+    make_status_array_pvesh running stopped running
     When call node_get_running_count 'pve1' 'qemu'
     The output should eq '2'
   End
 
   It 'returns 0 when no containers' do
-    node_pvesh() { echo '[]'; }
-
+    make_status_array_pvesh
     When call node_get_running_count 'pve1' 'lxc'
     The output should eq '0'
   End
 
   It 'returns 0 when no guests' do
-    node_pvesh() { echo '[]'; }
-
+    make_status_array_pvesh
     When call node_get_running_count 'pve1' 'qemu'
     The output should eq '0'
   End
 
   It 'logs the LXC count uppercased at verbose>=1' do
     verbose=1
-    node_pvesh() { echo '[{"status":"running"},{"status":"running"}]'; }
-
+    make_status_array_pvesh running running
     When call node_get_running_count 'pve1' 'lxc'
     The output should eq '2'
     The error should include 'Running LXC count: 2'
@@ -467,8 +477,7 @@ Describe 'node_get_running_count' do
 
   It 'logs the QEMU count uppercased at verbose>=1' do
     verbose=1
-    node_pvesh() { echo '[{"status":"running"}]'; }
-
+    make_status_array_pvesh running
     When call node_get_running_count 'pve1' 'qemu'
     The output should eq '1'
     The error should include 'Running QEMU count: 1'
