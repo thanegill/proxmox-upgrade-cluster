@@ -73,6 +73,29 @@ Describe 'process_args rejects flag-as-value through error_on_no_arg'
   End
 End
 
+Describe 'process_args missing-value rejections through error_on_no_arg'
+  Include proxmox-upgrade-cluster.sh
+
+  # Each value-taking flag should call error_on_no_arg and exit with
+  # "No arg passed" when nothing follows it. Parameterise — the only
+  # variation is the flag itself.
+  Parameters
+    --cluster-node
+    --node
+    --ssh-user
+    --ssh-opt
+    --pkg-reinstall
+    --reboot-timeout
+  End
+
+  It "$1 exits with error when no value follows" do
+    verbose=1
+    When run process_args "$1"
+    The status should be failure
+    The error should include 'No arg passed'
+  End
+End
+
 Describe 'process_args --cluster-node'
   Include proxmox-upgrade-cluster.sh
 
@@ -223,12 +246,8 @@ Describe 'process_args --reboot-timeout'
     The variable reboot_timeout should eq 900
   End
 
-  It 'exits with error when no value is provided' do
-    verbose=1
-    When run process_args '--cluster-node' 'pve1' '--reboot-timeout'
-    The status should be failure
-    The error should include 'No arg passed'
-  End
+  # "exits with error when no value is provided" is covered by the
+  # parameterized "missing-value rejections" block below.
 End
 
 Describe 'process_args --verbose'
