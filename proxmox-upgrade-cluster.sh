@@ -62,7 +62,7 @@ log_pipe_level() {
       "BASH   "
       "SSH2   "
     )
-    local level_name=${log_level_map[$level]:=$level}
+    local level_name=${log_level_map[$level]:-$level}
     local prefix="[$level_name]${prefix}"
   fi
 
