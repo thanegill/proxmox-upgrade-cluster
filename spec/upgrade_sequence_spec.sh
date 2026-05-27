@@ -174,6 +174,39 @@ Describe 'node_reboot'
     The error should include "'pve1'"
     The error should not include 'Rebooted successfully'
   End
+
+  It 'skips reboot when --skip-reboot is set and the kernel did not change' do
+    skip_reboot=true
+    node_needs_reboot() { return 1; }
+    # Sentinels: if any of these run we have a regression.
+    wait_sleep() { echo 'wait_sleep called' >&2; }
+    node_ssh_no_op() { echo 'ssh_no_op called' >&2; }
+    is_node_up() { echo 'is_node_up called' >&2; return 0; }
+
+    When call node_reboot 'pve1'
+    The status should be success
+    The error should include 'Skipping reboot per --skip-reboot.'
+    The error should not include 'WILL need a reboot'
+    The error should not include 'wait_sleep called'
+    The error should not include 'ssh_no_op called'
+    The error should not include 'is_node_up called'
+  End
+
+  It 'skips reboot with a stronger warning when a kernel update is staged' do
+    skip_reboot=true
+    node_needs_reboot() { return 0; }   # kernel did change
+    wait_sleep() { echo 'wait_sleep called' >&2; }
+    node_ssh_no_op() { echo 'ssh_no_op called' >&2; }
+    is_node_up() { echo 'is_node_up called' >&2; return 0; }
+
+    When call node_reboot 'pve1'
+    The status should be success
+    The error should include 'Skipping reboot per --skip-reboot.'
+    The error should include 'WILL need a reboot to pick up the new kernel'
+    The error should not include 'wait_sleep called'
+    The error should not include 'ssh_no_op called'
+    The error should not include 'is_node_up called'
+  End
 End
 
 Describe 'node_post_upgrade'

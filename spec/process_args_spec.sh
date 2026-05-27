@@ -200,6 +200,34 @@ Describe 'process_args flags'
     End
   End
 
+  Describe '--skip-reboot' do
+    It 'sets skip_reboot to true' do
+      When call process_args '--cluster-node' 'pve1' '--skip-reboot'
+      The variable skip_reboot should eq 'true'
+    End
+
+    It 'defaults to false' do
+      When call process_args '--cluster-node' 'pve1'
+      The variable skip_reboot should eq 'false'
+    End
+  End
+
+  Describe '--skip-reboot mutex with --force-reboot' do
+    It 'exits with error when --skip-reboot precedes --force-reboot' do
+      verbose=1
+      When run process_args '--cluster-node' 'pve1' '--skip-reboot' '--force-reboot'
+      The status should be failure
+      The error should include '--force-reboot and --skip-reboot cannot be used together'
+    End
+
+    It 'exits with error when --force-reboot precedes --skip-reboot' do
+      verbose=1
+      When run process_args '--cluster-node' 'pve1' '--force-reboot' '--skip-reboot'
+      The status should be failure
+      The error should include '--force-reboot and --skip-reboot cannot be used together'
+    End
+  End
+
   Describe '--no-maintenance-mode' do
     It 'sets use_maintenance_mode to false' do
       When call process_args '--cluster-node' 'pve1' '--no-maintenance-mode'

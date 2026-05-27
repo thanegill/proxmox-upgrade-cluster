@@ -12,6 +12,7 @@ declare ssh_key_auth_only=true
 declare cluster_node_use_ip=false
 declare force_upgrade=false
 declare force_reboot=false
+declare skip_reboot=false
 declare dry_run=false
 declare use_maintenance_mode=true
 declare allow_running_guests=false
@@ -587,6 +588,15 @@ node_needs_reboot() {
 node_reboot() {
   local node=${1?}
 
+  if [[ "$skip_reboot" == true ]]; then
+    if node_needs_reboot "$node"; then
+      log_prefix "$node" log_warning "Skipping reboot per --skip-reboot. Node WILL need a reboot to pick up the new kernel."
+    else
+      log_prefix "$node" log_warning "Skipping reboot per --skip-reboot."
+    fi
+    return 0
+  fi
+
   if [[ "$force_reboot" == true ]]; then
     log_prefix "$node" log_warning "Forcing Reboot."
   elif node_needs_reboot "$node"; then
@@ -719,6 +729,11 @@ OPTIONS
         those that aren't booted with the same kernel as the currently installed
         one.
 
+    --skip-reboot
+        Flag to skip the reboot step entirely, even when a new kernel is
+        staged for boot. Mutually exclusive with --force-reboot. The operator
+        is responsible for rebooting later to pick up any new kernel.
+
     --no-maintenance-mode
         Don't set node to maintenance mode when upgrading. This will disable
         HA migrations.
@@ -826,6 +841,9 @@ process_args() {
       --force-reboot)
         force_reboot=true
         ;;
+      --skip-reboot)
+        skip_reboot=true
+        ;;
       --no-maintenance-mode)
         use_maintenance_mode=false
         ;;
@@ -880,6 +898,12 @@ process_args() {
 
   if [[ -n ${cluster_node:-} && ${#cluster_nodes[@]} -ne 0 ]]; then
     log_error "ERROR: Only one of --cluster-node, or --nodes can be used."
+    log_error "See --help for usage."
+    exit 1
+  fi
+
+  if [[ "$force_reboot" == true && "$skip_reboot" == true ]]; then
+    log_error "ERROR: --force-reboot and --skip-reboot cannot be used together."
     log_error "See --help for usage."
     exit 1
   fi

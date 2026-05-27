@@ -77,6 +77,11 @@ OPTIONS
         those that aren't booted with the same kernel as the currently installed
         one.
 
+    --skip-reboot
+        Flag to skip the reboot step entirely, even when a new kernel is
+        staged for boot. Mutually exclusive with --force-reboot. The operator
+        is responsible for rebooting later to pick up any new kernel.
+
     --no-maintenance-mode
         Don't set node to maintenance mode when upgrading. This will disable
         HA migrations.
