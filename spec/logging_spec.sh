@@ -145,14 +145,12 @@ Describe 'Logging functions'
 
   Describe 'log_pipe_level' do
     It 'passes through lines when verbose >= level' do
-      local captured=""
       test_lpl() { echo "input line" | log_pipe_level 0; }
       When call test_lpl
       The error should include 'input line'
     End
 
     It 'filters out lines when verbose < level' do
-      local captured=""
       test_filter() { verbose=0; echo "filtered" | log_pipe_level 1; }
       When call test_filter
       The output should eq ''
@@ -160,14 +158,12 @@ Describe 'Logging functions'
     End
 
     It 'adds level name prefix when verbose >= level' do
-      local captured=""
       test_level() { verbose=2; echo "test" | log_pipe_level 2; }
       When call test_level
       The error should include '[DEBUG'
     End
 
     It 'logs with timestamp for verbose >= 3 level 3' do
-      local captured=""
       test_ts() { verbose=3; echo "test" | log_pipe_level 3; }
       When call test_ts
       The error should include '[20'
@@ -175,7 +171,6 @@ Describe 'Logging functions'
     End
 
     It 'skips empty lines' do
-      local captured=""
       test_empty() { verbose=1; printf "line1\n\nline2\n" | log_pipe_level 0; }
       When call test_empty
       The error should include 'line1'
@@ -215,7 +210,6 @@ Describe 'Logging functions'
 
   Describe 'log_pipe_level with prefix_arg' do
     It 'uses custom prefix when provided' do
-      local captured=""
       test_prefix() { echo "test data" | log_pipe_level 0 "myprefix"; }
       When call test_prefix
       The error should include 'myprefix'
@@ -223,7 +217,6 @@ Describe 'Logging functions'
     End
 
     It 'uses fallback level number when verbose level not in map' do
-      local captured=""
       test_fallback() { verbose=9; echo "fallback" | log_pipe_level 9; }
       When call test_fallback
       The error should include '[9]'
