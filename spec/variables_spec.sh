@@ -28,6 +28,28 @@ Describe 'proxmox-upgrade-cluster.sh'
     End
   End
 
+  Describe 'boolean flag defaults' do
+    # Scalar name + scalar value, no function-name substitution and no
+    # spaces — one of the few cases Parameters handles cleanly per the
+    # documented limitations in CLAUDE.md.
+    Parameters
+      ssh_key_auth_only        true
+      cluster_node_use_ip      false
+      force_upgrade            false
+      force_reboot             false
+      skip_reboot              false
+      dry_run                  false
+      use_maintenance_mode     true
+      allow_running_guests     false
+      allow_running_tasks      false
+      preserve_discovery_order false
+    End
+
+    It "$1 defaults to $2" do
+      The variable "$1" should eq "$2"
+    End
+  End
+
   Describe 'default arrays are initialized as empty' do
     It 'has empty ssh_options by default' do
       process_args() { echo "${#ssh_options[@]}"; }
