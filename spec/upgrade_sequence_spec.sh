@@ -230,13 +230,16 @@ End
 Describe 'node_post_upgrade'
   Include proxmox-upgrade-cluster.sh
 
-  It 'calls exit_maintenance' do
+  # node_exit_maintenance was lifted out of node_post_upgrade into
+  # node_run_update_sequence so per-step early-returns don't strand a
+  # node in maintenance. These tests cover just the apt-cleanup work
+  # that remains.
+
+  It 'logs the no-reinstall path when pkgs_reinstall is empty' do
     pkgs_reinstall=()
     node_ssh_no_op() { :; }
-    node_exit_maintenance() { echo 'exited maintenance'; }
 
     When call node_post_upgrade 'pve1'
-    The output should include 'exited maintenance'
     The error should include "No packages to force reinstall"
     The error should include 'Removing old packages'
   End
@@ -244,10 +247,8 @@ Describe 'node_post_upgrade'
   It 'reinstalls packages when pkgs_reinstall is set' do
     pkgs_reinstall=("pve-firmware")
     node_ssh_no_op() { echo 'reinstalled'; }
-    node_exit_maintenance() { echo 'exited maintenance'; }
 
     When call node_post_upgrade 'pve1'
-    The output should include 'exited maintenance'
     The error should include "Force reinstalling"
     The error should include 'Removing old packages'
   End
@@ -258,14 +259,20 @@ Describe 'node_run_update_sequence'
   # The trap fires via errexit propagation; tests must run with set -e on.
   Set errexit:on
 
-  # Install no-op stubs for the four stages of the upgrade sequence. Each
-  # It overrides whichever stub(s) it wants to fail or trace. Mirrors the
-  # install_main_happy_path_stubs pattern in main_spec.sh.
+  # Install no-op stubs for every step the orchestrator now calls. The
+  # maintenance enter/exit calls and the pre-flight check were lifted out
+  # of node_pre_upgrade/node_post_upgrade so node_run_update_sequence is
+  # the canonical view of the lifecycle. Each It overrides whichever
+  # stub(s) it wants to fail or trace. Mirrors install_main_happy_path_stubs.
   install_update_sequence_happy_stubs() {
-    node_pre_upgrade()  { :; }
-    node_upgrade()      { :; }
-    node_reboot()       { :; }
-    node_post_upgrade() { :; }
+    node_pre_flight_check()             { :; }
+    node_enter_maintenance()            { :; }
+    node_wait_all_tasks_completed()     { :; }
+    node_wait_until_no_running_guests() { :; }
+    node_upgrade()                      { :; }
+    node_reboot()                       { :; }
+    node_post_upgrade()                 { :; }
+    node_exit_maintenance()             { :; }
   }
 
   It 'runs all upgrade steps on the success path without warning' do
@@ -276,6 +283,33 @@ Describe 'node_run_update_sequence'
     The error should include 'Starting upgrade'
     The error should include 'Successfully upgraded'
     The error should not include 'may still be in maintenance'
+  End
+
+  It 'enters maintenance before the work and exits maintenance after' do
+    # Pin the lifecycle order: pre-flight → enter → upgrade → reboot →
+    # post → exit. Use a single shared invocation log so we can assert
+    # the relative ordering.
+    invocations="$(mktemp)"
+    node_pre_flight_check()             { echo 'pre_flight' >> "$invocations"; }
+    node_enter_maintenance()            { echo 'enter_maintenance' >> "$invocations"; }
+    node_wait_all_tasks_completed()     { :; }
+    node_wait_until_no_running_guests() { :; }
+    node_upgrade()                      { echo 'upgrade' >> "$invocations"; }
+    node_reboot()                       { echo 'reboot' >> "$invocations"; }
+    node_post_upgrade()                 { echo 'post_upgrade' >> "$invocations"; }
+    node_exit_maintenance()             { echo 'exit_maintenance' >> "$invocations"; }
+
+    When call node_run_update_sequence 'pve1'
+    The status should be success
+    The error should include 'Starting upgrade'
+    The error should include 'Successfully upgraded'
+    The line 1 of contents of file "$invocations" should eq 'pre_flight'
+    The line 2 of contents of file "$invocations" should eq 'enter_maintenance'
+    The line 3 of contents of file "$invocations" should eq 'upgrade'
+    The line 4 of contents of file "$invocations" should eq 'reboot'
+    The line 5 of contents of file "$invocations" should eq 'post_upgrade'
+    The line 6 of contents of file "$invocations" should eq 'exit_maintenance'
+    rm -f "$invocations"
   End
 
   It 'warns about maintenance and does NOT auto-recover when node_upgrade fails' do
@@ -294,10 +328,10 @@ Describe 'node_run_update_sequence'
     The error should not include 'auto-recovery ran'
   End
 
-  It 'fires the trap when node_pre_upgrade fails (maintenance may have been entered)' do
+  It 'fires the trap when node_enter_maintenance fails' do
     install_update_sequence_happy_stubs
     use_maintenance_mode=true
-    node_pre_upgrade() { return 1; }
+    node_enter_maintenance() { return 1; }
     node_upgrade() { echo 'should not reach upgrade' >&2; }
     node_reboot() { echo 'should not reach reboot' >&2; }
     node_post_upgrade() { echo 'should not reach post' >&2; }
@@ -306,6 +340,16 @@ Describe 'node_run_update_sequence'
     The status should be failure
     The error should include 'may still be in maintenance mode'
     The error should not include 'should not reach'
+  End
+
+  It 'fires the trap when node_exit_maintenance fails' do
+    install_update_sequence_happy_stubs
+    use_maintenance_mode=true
+    node_exit_maintenance() { return 1; }
+
+    When run node_run_update_sequence 'pveW'
+    The status should be failure
+    The error should include 'may still be in maintenance mode'
   End
 
   It 'fires the trap when node_reboot fails (post_upgrade never exits maintenance)' do
@@ -320,15 +364,17 @@ Describe 'node_run_update_sequence'
     The error should not include 'should not reach'
   End
 
-  It 'fires the trap when node_post_upgrade fails (e.g. before its exit_maintenance call)' do
+  It 'fires the trap when node_post_upgrade fails (before maintenance can be exited)' do
     install_update_sequence_happy_stubs
     use_maintenance_mode=true
-    # Fail post_upgrade — exit_maintenance inside it never runs.
     node_post_upgrade() { return 1; }
+    # If post_upgrade fails, the orchestrator never reaches node_exit_maintenance.
+    node_exit_maintenance() { echo 'should not reach exit_maintenance' >&2; }
 
     When run node_run_update_sequence 'pveZ'
     The status should be failure
     The error should include 'may still be in maintenance mode'
+    The error should not include 'should not reach exit_maintenance'
   End
 
   It 'cites the active node by name in the maintenance warning' do
@@ -375,7 +421,7 @@ Describe 'node_run_update_sequence'
     # parent flow succeeded. Assert errtrace stays off — that's the contract
     # the trap design relies on.
     install_update_sequence_happy_stubs
-    node_pre_upgrade() {
+    node_upgrade() {
       [[ $- == *E* ]] && echo "ERRTRACE-LEAKED" >&2
     }
 
@@ -448,14 +494,14 @@ Describe 'node_wait_all_tasks_completed'
   End
 End
 
-Describe 'node_pre_maintenance_check'
+Describe 'node_pre_flight_check'
   Include proxmox-upgrade-cluster.sh
 
   It 'returns success when no offline nodes' do
     node_get_offline_count() { echo '0'; }
     wait_sleep() { return 0; }
 
-    When call node_pre_maintenance_check 'pve1'
+    When call node_pre_flight_check 'pve1'
     The status should be success
     The error should include "Checking that no cluster nodes are currently offline"
     The error should include "All cluster nodes are online"

@@ -486,7 +486,7 @@ node_wait_all_tasks_completed() {
   log_prefix "$node" log_success "Cluster reached zero running tasks."
 }
 
-node_pre_maintenance_check() {
+node_pre_flight_check() {
   local node=${1?}
 
   log_prefix "$node" log_status "Checking that no cluster nodes are currently offline..."
@@ -536,18 +536,6 @@ node_exit_maintenance() {
   if [[ "$dry_run" == true ]]; then return 0; fi
 
   node_wait_until_mode "$node" "online"
-}
-
-node_pre_upgrade() {
-  local node=${1?}
-  node_pre_maintenance_check "$node"
-  node_enter_maintenance "$node"
-  node_wait_all_tasks_completed "$node"
-
-  # Don't wait for no running guests when dry-run
-  if [[ "$dry_run" == true ]]; then return 0; fi
-
-  node_wait_until_no_running_guests "$node"
 }
 
 node_upgrade() {
@@ -650,7 +638,6 @@ node_post_upgrade() {
   fi
   log_prefix "$node" log_success "Removing old packages..."
   node_ssh_no_op "$node" "DEBIAN_FRONTEND=noninteractive apt-get autoremove -y && apt-get autoclean -y" | log_pipe_level 0 "[$node][apt]"
-  node_exit_maintenance "$node"
 }
 
 node_run_update_sequence() {
@@ -677,9 +664,9 @@ node_run_update_sequence() {
   #   a spurious "may still be in maintenance" warning on every node, every
   #   upgrade — even when the parent flow succeeded cleanly (see the smoke
   #   test in 59c518d -> 2c544f4). Without errtrace the trap only fires at
-  #   THIS scope, when one of the direct stage calls (node_pre_upgrade,
-  #   node_upgrade, node_reboot, node_post_upgrade) returns non-zero — which
-  #   is exactly the signal we care about.
+  #   THIS scope, when one of the direct stage calls (node_enter_maintenance,
+  #   node_upgrade, node_reboot, node_post_upgrade, node_exit_maintenance,
+  #   etc.) returns non-zero — which is exactly the signal we care about.
   #
   # The "does not enable errtrace" test in spec/upgrade_sequence_spec.sh
   # pins this contract: changing the function to `set -E` would re-introduce
@@ -690,11 +677,25 @@ node_run_update_sequence() {
   fi" ERR
 
   log_prefix "$node" log_success "Starting upgrade."
+
+  # Pre-flight: verify cluster is healthy before touching anything.
+  node_pre_flight_check "$node"
+
+  # Enter maintenance and wait for HA to migrate guests onto peers.
   [[ "$use_maintenance_mode" == true ]] && in_maintenance=true
-  node_pre_upgrade "$node"
+  node_enter_maintenance "$node"
+  node_wait_all_tasks_completed "$node"
+  if [[ "$dry_run" != true ]]; then
+    node_wait_until_no_running_guests "$node"
+  fi
+
+  # The work.
   node_upgrade "$node"
   node_reboot "$node"
   node_post_upgrade "$node"
+
+  # Exit maintenance.
+  node_exit_maintenance "$node"
   in_maintenance=false
 
   trap - ERR

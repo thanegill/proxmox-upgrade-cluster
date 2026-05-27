@@ -802,29 +802,8 @@ Describe 'node_ssh'
   End
 End
 
-Describe 'node_pre_upgrade'
-  Include proxmox-upgrade-cluster.sh
-
-  It 'calls all pre-upgrade steps' do
-    dry_run=false
-    allow_running_guests=false
-    node_pre_maintenance_check() { return 0; }
-    node_enter_maintenance() { :; }
-    node_wait_all_tasks_completed() { :; }
-    node_wait_until_no_running_guests() { :; }
-
-    When call node_pre_upgrade 'pve1'
-    The status should be success
-  End
-
-  It 'skips waiting for no running guests when dry_run is true' do
-    dry_run=true
-    node_pre_maintenance_check() { return 0; }
-    node_enter_maintenance() { :; }
-    node_wait_all_tasks_completed() { :; }
-    node_wait_until_no_running_guests() { :; }
-
-    When call node_pre_upgrade 'pve1'
-    The status should be success
-  End
-End
+# node_pre_upgrade was deleted in favour of inlining its three steps
+# (node_pre_flight_check, node_wait_all_tasks_completed,
+# node_wait_until_no_running_guests) into node_run_update_sequence.
+# Each sub-step still has its own Describe block (see this file and
+# spec/upgrade_sequence_spec.sh).
