@@ -311,71 +311,64 @@ End
 Describe 'process_args ssh_options setup'
   Include proxmox-upgrade-cluster.sh
 
-  It 'adds -l $ssh_user to ssh_options' do
-    process_args() {
-      local args=("$@")
-      local i=0
-      while [[ $i -lt ${#args[@]} ]]; do
-        case "${args[$i]}" in
-          --cluster-node|-c) ((i++)); echo "ssh_opt=-l root"; ;;
-          *) ((i++)) ;;
-        esac
-      done
-    }
+  # Arrays don't persist across When call subprocess, so wrap process_args
+  # in a function that prints the final ssh_options to stdout for assertion.
+  capture_ssh_options() {
+    process_args "$@"
+    printf '[%s]\n' "${ssh_options[@]}"
+  }
 
-    When call process_args '--cluster-node' 'pve1'
-    The output should include '-l root'
+  It 'stores -l and ssh_user as separate ssh_options tokens' do
+    When call capture_ssh_options '--cluster-node' 'pve1'
+    The output should include '[-l]'
+    The output should include '[root]'
   End
 
-  It 'adds PasswordAuthentication=no when ssh_key_auth_only is true' do
-    process_args() {
-      local args=("$@")
-      local i=0
-      while [[ $i -lt ${#args[@]} ]]; do
-        case "${args[$i]}" in
-          --cluster-node|-c) ((i++)); echo "ssh_opt=-o PasswordAuthentication=no"; ;;
-          *) ((i++)) ;;
-        esac
-      done
-    }
+  It 'keeps ssh_user containing spaces as one token' do
+    When call capture_ssh_options '--cluster-node' 'pve1' '--ssh-user' 'user with space'
+    The output should include '[-l]'
+    The output should include '[user with space]'
+  End
 
-    When call process_args '--cluster-node' 'pve1'
-    The output should include '-o PasswordAuthentication=no'
+  It 'stores -o and PasswordAuthentication=no as separate ssh_options tokens' do
+    When call capture_ssh_options '--cluster-node' 'pve1'
+    The output should include '[-o]'
+    The output should include '[PasswordAuthentication=no]'
   End
 
   It 'does not add PasswordAuthentication=no when ssh_key_auth_only is false' do
-    process_args() {
-      local args=("$@")
-      local i=0
-      while [[ $i -lt ${#args[@]} ]]; do
-        case "${args[$i]}" in
-          --cluster-node|-c) ((i++)); ;;
-          --ssh-allow-password-auth) echo "no_password_auth"; return 0; ;;
-          *) ((i++)) ;;
-        esac
-      done
-    }
-
-    When call process_args '--cluster-node' 'pve1' '--ssh-allow-password-auth'
-    The output should include 'no_password_auth'
-    The output should not include '-o PasswordAuthentication=no'
+    When call capture_ssh_options '--cluster-node' 'pve1' '--ssh-allow-password-auth'
+    The output should not include '[PasswordAuthentication=no]'
   End
 
-  It 'accumulates multiple --ssh-opt flags' do
-    process_args() {
-      local args=("$@")
-      local i=0
-      while [[ $i -lt ${#args[@]} ]]; do
-        case "${args[$i]}" in
-          --cluster-node|-c) ((i++)); ;;
-          --ssh-opt|-o) ((i++)); echo "ssh_opt=${args[$i]}"; ;;
-          *) ((i++)) ;;
-        esac
-      done
-    }
+  It 'accumulates multiple --ssh-opt flags as distinct tokens, each containing the literal value' do
+    When call capture_ssh_options '--cluster-node' 'pve1' '--ssh-opt' '-o StrictHostKeyChecking=no' '--ssh-opt' '-o IdentityFile=/key'
+    The output should include '[-o StrictHostKeyChecking=no]'
+    The output should include '[-o IdentityFile=/key]'
+  End
+End
 
-    When call process_args '--cluster-node' 'pve1' '--ssh-opt' '-o StrictHostKeyChecking=no' '--ssh-opt' '-o IdentityFile=/key'
-    The output should include '-o StrictHostKeyChecking=no'
-    The output should include '-o IdentityFile=/key'
+Describe 'node_ssh passes ssh_options as distinct argv elements'
+  Include proxmox-upgrade-cluster.sh
+
+  It 'preserves ssh_options token boundaries when invoking local_ssh' do
+    local_ssh() { printf '[%s]\n' "$@"; }
+    ssh_options=(-l 'user with space' -o 'PasswordAuthentication=no')
+    When call node_ssh 'pve1' 'whoami'
+    The output should include '[pve1]'
+    The output should include '[-l]'
+    The output should include '[user with space]'
+    The output should include '[-o]'
+    The output should include '[PasswordAuthentication=no]'
+    The output should include '[whoami]'
+  End
+
+  It 'forwards extra ssh args from caller without word-splitting' do
+    local_ssh() { printf '[%s]\n' "$@"; }
+    ssh_options=()
+    When call node_ssh 'pve1' 'whoami' '-oConnectTimeout=5'
+    The output should include '[pve1]'
+    The output should include '[-oConnectTimeout=5]'
+    The output should include '[whoami]'
   End
 End

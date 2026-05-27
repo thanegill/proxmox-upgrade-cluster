@@ -203,8 +203,7 @@ wait_all_succeed() {
 }
 
 local_ssh() {
-  # shellcheck disable=2068
-  command ssh $@
+  command ssh "$@"
 }
 
 node_ssh() {
@@ -212,8 +211,7 @@ node_ssh() {
   local cmd=${1?}; shift
   log_prefix "$host" log_debug "Running command '$cmd'"
 
-  # shellcheck disable=SC2048,2086 # Need to expand ssh_options with all whitespace.
-  local_ssh "$host" ${ssh_options[*]} $* "$cmd" 2> >(log_prefix "$host" log_pipe_level 3 "[stderr]")
+  local_ssh "$host" "${ssh_options[@]}" "$@" "$cmd" 2> >(log_prefix "$host" log_pipe_level 3 "[stderr]")
 }
 
 node_ssh_no_op() {
@@ -789,8 +787,8 @@ process_args() {
   test $verbose -ge 6 && set -x
   test $verbose -ge 7 && ssh_options+=("-v")
 
-  ssh_options+=("-l $ssh_user")
-  [[ "$ssh_key_auth_only" == true ]] && ssh_options+=("-o PasswordAuthentication=no")
+  ssh_options+=(-l "$ssh_user")
+  [[ "$ssh_key_auth_only" == true ]] && ssh_options+=(-o "PasswordAuthentication=no")
 
   if [[ -z ${cluster_node:-} && ${#cluster_nodes[@]} -eq 0 ]]; then
     log_error "ERROR: One of --cluster-node, or --nodes must be used."
