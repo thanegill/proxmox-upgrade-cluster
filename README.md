@@ -8,6 +8,13 @@ nodes.
 
 * Automatically determine cluster members (`-c HOSTNAME`).
 * Upgrade all or specific nodes (`-n HOSTNAME`).
+* When discovering nodes via `-c`, upgrade them in ascending order of running
+  guest count so the lightest node migrates first (override with
+  `--preserve-discovery-order`).
+* Migrate running guests off each node via Proxmox HA maintenance mode before
+  upgrading (override with `--no-maintenance-mode`).
+* Pre-flight and during-upgrade safety checks (cluster reachable, no
+  offline members, no running tasks or guests on the target).
 * Reboot nodes only when needed, or can optionally force a reboot (`--force-reboot`).
 * Optionally force package reinstallation after upgrade (`--pkg-reinstall PACKAGE`).
 * No-op mode (`--dry-run`).
