@@ -176,6 +176,35 @@ Describe 'Logging functions'
       The error should include 'line1'
       The error should include 'line2'
     End
+
+    It 'produces a well-formed timestamp in a comma-decimal locale (verbose<3)' do
+      Skip if 'de_DE.UTF-8 locale not installed' [ "$(locale -a 2>/dev/null | grep -c '^de_DE\.UTF-8$')" -eq 0 ]
+      # Without LC_NUMERIC=C inside log_pipe_level, EPOCHREALTIME would emit
+      # `<sec>,<usec>` and the %%.* expansion would leave the whole string,
+      # then printf '%(...)T' would emit a "printf: ... invalid number" warning.
+      test_lc() {
+        LC_NUMERIC=de_DE.UTF-8
+        verbose=2
+        echo "msg" | log_pipe_level 0
+      }
+      When call test_lc
+      The error should match pattern '*[[][0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9] [0-9][0-9]:[0-9][0-9]:[0-9][0-9]]*'
+      The error should include 'msg'
+      The error should not include 'invalid number'
+    End
+
+    It 'produces a well-formed timestamp with milliseconds in a comma-decimal locale (verbose>=3)' do
+      Skip if 'de_DE.UTF-8 locale not installed' [ "$(locale -a 2>/dev/null | grep -c '^de_DE\.UTF-8$')" -eq 0 ]
+      test_lc_ms() {
+        LC_NUMERIC=de_DE.UTF-8
+        verbose=3
+        echo "msg" | log_pipe_level 0
+      }
+      When call test_lc_ms
+      The error should match pattern '*[[][0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9] [0-9][0-9]:[0-9][0-9]:[0-9][0-9].[0-9]*]*'
+      The error should include 'msg'
+      The error should not include 'invalid number'
+    End
   End
 
   Describe 'log_debug2' do

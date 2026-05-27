@@ -44,6 +44,11 @@ log_pipe_level() {
   # Return if verbosity level is not met.
   test $verbose -lt $level && return 0
 
+  # EPOCHREALTIME uses the locale's decimal separator; in non-C locales (e.g.
+  # de_DE.UTF-8 uses ','), the %%.* / ##.* expansions would not split and the
+  # printf %s arg below would be the entire timestamp string. Force C numeric.
+  local LC_NUMERIC=C
+
   local prefix="${LOG_PREFIX:-}${prefix_arg}"
 
   if [[ $verbose -ge 1 ]]; then
