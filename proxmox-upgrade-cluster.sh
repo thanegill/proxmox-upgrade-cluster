@@ -319,25 +319,26 @@ apt_update_nodes() {
   wait_all_succeed node_apt_update nodes
 }
 
-node_get_running() {
+node_get_running_count() {
   local node=${1?}
   local type=${2?}
+  local -i count
   # shellcheck disable=SC2016 # $(hostname) is supposed to run in remote host.
-  node_pvesh "$node" "nodes/\$(hostname)/$type" | jq -rc '[.[] | select(.status != "stopped")]'
+  count="$(node_pvesh "$node" "nodes/\$(hostname)/$type" | jq -rc '[.[] | select(.status != "stopped")] | length')"
+  log_prefix "$node" log_verbose "Running ${type^^} count: $count"
+  echo "$count"
 }
 
 node_get_running_guest_count() {
   local node=${1?}
+  local -i lxc_count qemu_count total
 
-  local -i lxc_count
-  lxc_count="$(node_get_running "$node" "lxc" | jq -rc '.|length')"
-  log_prefix "$node" log_verbose "Running LXC count: $lxc_count"
+  lxc_count="$(node_get_running_count "$node" "lxc")"
+  qemu_count="$(node_get_running_count "$node" "qemu")"
+  total=$((lxc_count + qemu_count))
 
-  local -i qemu_count
-  qemu_count="$(node_get_running "$node" "qemu" | jq -rc '.|length')"
-  log_prefix "$node" log_verbose "Running QEMU count: $qemu_count"
-
-  echo "$((lxc_count + qemu_count))"
+  log_prefix "$node" log_verbose "Number of guests running: $total"
+  echo "$total"
 }
 
 node_get_offline_count() {
@@ -410,7 +411,6 @@ node_wait_until_no_running_guests() {
   local -i count
   count="$(node_get_running_guest_count "$node")"
   until [[ $count -eq 0 ]]; do
-    log_prefix "$node" log_verbose "Number of guests running: $count"
     log_progress 5s
     count="$(node_get_running_guest_count "$node")"
   done

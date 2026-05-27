@@ -52,18 +52,27 @@ Describe 'node_get_running_guest_count'
   Include proxmox-upgrade-cluster.sh
 
   It 'returns total count of running guests' do
-    node_get_running() {
-      if [[ "$2" == "lxc" ]]; then echo '[{"status":"running"}]'; else echo '[{"status":"running"},{"status":"running"}]'; fi
+    node_get_running_count() {
+      if [[ "$2" == "lxc" ]]; then echo '1'; else echo '2'; fi
     }
     When call node_get_running_guest_count 'pve1'
     The output should eq '3'
   End
 
   It 'returns 0 when no guests are running' do
-    node_get_running() { echo '[]'; }
+    node_get_running_count() { echo '0'; }
 
     When call node_get_running_guest_count 'pve1'
     The output should eq '0'
+  End
+
+  It 'logs the running total at verbose>=1' do
+    verbose=1
+    node_get_running_count() { if [[ "$2" == "lxc" ]]; then echo '4'; else echo '7'; fi; }
+
+    When call node_get_running_guest_count 'pve1'
+    The output should eq '11'
+    The error should include 'Number of guests running: 11'
   End
 End
 
@@ -302,37 +311,53 @@ Describe 'node_ssh_no_op'
   End
 End
 
-Describe 'node_get_running' do
+Describe 'node_get_running_count' do
   Include proxmox-upgrade-cluster.sh
 
-  It 'returns running lxc containers excluding stopped' do
+  It 'returns count of running lxc containers excluding stopped' do
     node_pvesh() { echo '[{"status":"running"},{"status":"stopped"}]'; }
 
-    When call node_get_running 'pve1' 'lxc'
-    The output should include '"status":"running"'
-    The output should not include '"status":"stopped"'
+    When call node_get_running_count 'pve1' 'lxc'
+    The output should eq '1'
   End
 
-  It 'returns running qemu guests excluding stopped' do
-    node_pvesh() { echo '[{"status":"running"},{"status":"stopped"}]'; }
+  It 'returns count of running qemu guests excluding stopped' do
+    node_pvesh() { echo '[{"status":"running"},{"status":"stopped"},{"status":"running"}]'; }
 
-    When call node_get_running 'pve1' 'qemu'
-    The output should include '"status":"running"'
-    The output should not include '"status":"stopped"'
+    When call node_get_running_count 'pve1' 'qemu'
+    The output should eq '2'
   End
 
-  It 'returns empty array when no containers' do
+  It 'returns 0 when no containers' do
     node_pvesh() { echo '[]'; }
 
-    When call node_get_running 'pve1' 'lxc'
-    The output should eq '[]'
+    When call node_get_running_count 'pve1' 'lxc'
+    The output should eq '0'
   End
 
-  It 'returns empty array when no guests' do
+  It 'returns 0 when no guests' do
     node_pvesh() { echo '[]'; }
 
-    When call node_get_running 'pve1' 'qemu'
-    The output should eq '[]'
+    When call node_get_running_count 'pve1' 'qemu'
+    The output should eq '0'
+  End
+
+  It 'logs the LXC count uppercased at verbose>=1' do
+    verbose=1
+    node_pvesh() { echo '[{"status":"running"},{"status":"running"}]'; }
+
+    When call node_get_running_count 'pve1' 'lxc'
+    The output should eq '2'
+    The error should include 'Running LXC count: 2'
+  End
+
+  It 'logs the QEMU count uppercased at verbose>=1' do
+    verbose=1
+    node_pvesh() { echo '[{"status":"running"}]'; }
+
+    When call node_get_running_count 'pve1' 'qemu'
+    The output should eq '1'
+    The error should include 'Running QEMU count: 1'
   End
 End
 
