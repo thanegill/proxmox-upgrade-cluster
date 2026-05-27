@@ -12,6 +12,52 @@ Describe 'error_on_no_arg'
     The status should be failure
     The error should include "No arg passed"
   End
+
+  It 'exits with error when the next token is a long flag' do
+    When run error_on_no_arg '--node' '--dry-run'
+    The status should be failure
+    The error should include "requires a value, got flag '--dry-run'"
+  End
+
+  It 'exits with error when the next token is a short flag' do
+    When run error_on_no_arg '--node' '-n'
+    The status should be failure
+    The error should include "requires a value, got flag '-n'"
+  End
+
+  It 'accepts a value that starts with a letter' do
+    When run error_on_no_arg '--node' 'pve1'
+    The status should be success
+  End
+
+  It 'accepts a dash-prefixed value when allow_dash is true' do
+    When run error_on_no_arg '--ssh-opt' '-o StrictHostKeyChecking=no' true
+    The status should be success
+  End
+
+  It 'still rejects an empty value even when allow_dash is true' do
+    When run error_on_no_arg '--ssh-opt' '' true
+    The status should be failure
+    The error should include "No arg passed"
+  End
+End
+
+Describe 'process_args rejects flag-as-value through error_on_no_arg'
+  Include proxmox-upgrade-cluster.sh
+
+  It 'rejects --node followed by another flag' do
+    verbose=1
+    When run process_args '--node' '--dry-run'
+    The status should be failure
+    The error should include "requires a value, got flag '--dry-run'"
+  End
+
+  It 'rejects --cluster-node followed by -n' do
+    verbose=1
+    When run process_args '--cluster-node' '-n' 'pve1'
+    The status should be failure
+    The error should include "requires a value, got flag '-n'"
+  End
 End
 
 Describe 'process_args --cluster-node'

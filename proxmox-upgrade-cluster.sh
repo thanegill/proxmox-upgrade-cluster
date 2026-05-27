@@ -723,10 +723,19 @@ EOF
 }
 
 error_on_no_arg() {
+  # allow_dash defaults to false: by default, reject values that look like
+  # another flag (e.g. `--node --dry-run`). Pass `true` for flags whose values
+  # legitimately start with a dash, like --ssh-opt.
   local arg=${1?}
   local value=${2:-}
+  local allow_dash=${3:-false}
   if [[ -z $value ]]; then
     log_error "ERROR: No arg passed for '$arg'."
+    log_error "See --help for usage."
+    exit 1
+  fi
+  if [[ $allow_dash != true && $value == -* ]]; then
+    log_error "ERROR: '$arg' requires a value, got flag '$value'."
     log_error "See --help for usage."
     exit 1
   fi
@@ -758,7 +767,7 @@ process_args() {
         ;;
       --ssh-opt|-o)
         shift
-        error_on_no_arg "--ssh-opt" "${1:-}"
+        error_on_no_arg "--ssh-opt" "${1:-}" true
         ssh_options+=("$1")
         ;;
       --ssh-allow-password-auth)
