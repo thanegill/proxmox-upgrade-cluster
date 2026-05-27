@@ -57,7 +57,7 @@ OPTIONS
     --ssh-allow-password-auth
         Default is to force SSH key auth with 'PasswordAuthentication=no'. Set
         this to allow ssh password auth. This is strongly recommended against.
-        You may have to enter your password hundereds of times.
+        You may have to enter your password hundreds of times.
 
     --cluster-node-use-ip
         When using '--cluster-node', use the IP address instead of the node name.

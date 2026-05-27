@@ -3,7 +3,6 @@
 shopt -s extglob
 
 set -o errexit -o nounset -o pipefail
-set -o errtrace -o functrace
 shopt -s inherit_errexit
 
 declare program_name
@@ -32,7 +31,7 @@ log_output() {
 }
 
 wait_sleep() {
-  # Default poll interval for waiting loops; override in tests with mock.
+  # Indirection so tests can override sleep without trapping the builtin.
   local duration=${1?}
   sleep "$duration"
 }
@@ -611,7 +610,7 @@ OPTIONS
     --ssh-allow-password-auth
         Default is to force SSH key auth with 'PasswordAuthentication=no'. Set
         this to allow ssh password auth. This is strongly recommended against.
-        You may have to enter your password hundereds of times.
+        You may have to enter your password hundreds of times.
 
     --cluster-node-use-ip
         When using '--cluster-node', use the IP address instead of the node name.
