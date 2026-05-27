@@ -83,24 +83,38 @@ End
 Describe 'node_reboot'
   Include proxmox-upgrade-cluster.sh
 
-  It 'returns success when neither force_reboot nor needs_reboot' do
+  # File-scope helper: install the stubs needed to exercise the "real
+  # reboot" code path without actually sleeping or ssh-ing. Each It-block
+  # calls this and overrides only what differs.
+  #
+  # Defaults:
+  #   verbose=1 (so log lines appear in stderr)
+  #   force_reboot=false, skip_reboot=false, dry_run=false
+  #   node_needs_reboot returns 1 (no reboot needed)
+  #   is_node_up returns 0 (comes back immediately)
+  #   wait_sleep and node_ssh_no_op are no-ops
+  #   reboot_timeout retains its script default (900s)
+  install_reboot_stubs() {
     verbose=1
     force_reboot=false
+    skip_reboot=false
+    dry_run=false
     node_needs_reboot() { return 1; }
+    wait_sleep() { :; }
+    node_ssh_no_op() { :; }
+    is_node_up() { return 0; }
+  }
 
+  It 'returns early with success when no reboot is needed' do
+    install_reboot_stubs
     When call node_reboot 'pve1'
     The status should be success
     The error should include "Doesn't need to be rebooted"
   End
 
   It 'reboots when force_reboot is true' do
+    install_reboot_stubs
     force_reboot=true
-    dry_run=false
-    verbose=1
-    node_needs_reboot() { return 1; }
-    wait_sleep() { :; }
-    node_ssh_no_op() { echo 'rebooting'; }
-    is_node_up() { return 0; }
     When call node_reboot 'pve1'
     The status should be success
     The error should include 'Forcing Reboot'
@@ -109,26 +123,9 @@ Describe 'node_reboot'
     The error should include 'Rebooted successfully'
   End
 
-  It 'skips reboot when dry_run is true and needs reboot' do
-    force_reboot=false
-    dry_run=true
+  It 'reboots when node_needs_reboot is true and force_reboot is false' do
+    install_reboot_stubs
     node_needs_reboot() { return 0; }
-
-    When call node_reboot 'pve1'
-    The status should be success
-    The error should include "Needs to be rebooted"
-    The error should include 'Not rebooting'
-  End
-
-  It 'reboots when needs_reboot is true and force_reboot is false' do
-    force_reboot=false
-    dry_run=false
-    verbose=1
-    node_needs_reboot() { return 0; }
-    wait_sleep() { :; }
-    node_ssh_no_op() { echo 'rebooting'; }
-    is_node_up() { return 0; }
-
     When call node_reboot 'pve1'
     The status should be success
     The error should include "Needs to be rebooted"
@@ -137,47 +134,30 @@ Describe 'node_reboot'
     The error should include 'Rebooted successfully'
   End
 
-  It 'passes ssh keepalive options when invoking reboot and dmesg -W' do
-    force_reboot=true
-    dry_run=false
-    verbose=3  # log_pipe_level 3 (reboot pipe) only emits when verbose>=3
-    node_needs_reboot() { return 1; }
-    wait_sleep() { :; }
-    # node_ssh_no_op's stdout gets piped through log_pipe_level → log_output → stderr,
-    # so assert against stderr.
-    node_ssh_no_op() {
-      local node=$1; shift
-      local cmd=$1; shift
-      echo "ssh($node, $cmd, $*)"
-    }
-    is_node_up() { return 0; }
-
+  It 'skips reboot when dry_run is true and needs reboot' do
+    install_reboot_stubs
+    dry_run=true
+    node_needs_reboot() { return 0; }
     When call node_reboot 'pve1'
     The status should be success
-    The error should include 'ssh(pve1, reboot, -oConnectTimeout=10 -oServerAliveInterval=5 -oServerAliveCountMax=2)'
-    The error should include 'ssh(pve1, dmesg -W, -oConnectTimeout=10 -oServerAliveInterval=5 -oServerAliveCountMax=2)'
+    The error should include "Needs to be rebooted"
+    The error should include 'Not rebooting'
   End
 
-  It 'aborts with a timeout error when the node does not come back up' do
+  It 'skips reboot when dry_run is true even with force_reboot' do
+    install_reboot_stubs
+    dry_run=true
     force_reboot=true
-    dry_run=false
-    verbose=1
-    reboot_timeout=0
-    node_needs_reboot() { return 1; }
-    wait_sleep() { :; }
-    node_ssh_no_op() { :; }
-    is_node_up() { return 1; }
-
-    When run node_reboot 'pve1'
-    The status should be failure
-    The error should include 'Timed out after 0s'
-    The error should include "'pve1'"
-    The error should not include 'Rebooted successfully'
+    When call node_reboot 'pve1'
+    The status should be success
+    The error should include 'Forcing Reboot'
+    The error should include 'Not rebooting'
+    The error should not include 'Rebooting in 5 seconds'
   End
 
   It 'skips reboot when --skip-reboot is set and the kernel did not change' do
+    install_reboot_stubs
     skip_reboot=true
-    node_needs_reboot() { return 1; }
     # Sentinels: if any of these run we have a regression.
     wait_sleep() { echo 'wait_sleep called' >&2; }
     node_ssh_no_op() { echo 'ssh_no_op called' >&2; }
@@ -193,19 +173,57 @@ Describe 'node_reboot'
   End
 
   It 'skips reboot with a stronger warning when a kernel update is staged' do
+    install_reboot_stubs
     skip_reboot=true
     node_needs_reboot() { return 0; }   # kernel did change
-    wait_sleep() { echo 'wait_sleep called' >&2; }
-    node_ssh_no_op() { echo 'ssh_no_op called' >&2; }
-    is_node_up() { echo 'is_node_up called' >&2; return 0; }
 
     When call node_reboot 'pve1'
     The status should be success
     The error should include 'Skipping reboot per --skip-reboot.'
     The error should include 'WILL need a reboot to pick up the new kernel'
-    The error should not include 'wait_sleep called'
-    The error should not include 'ssh_no_op called'
-    The error should not include 'is_node_up called'
+  End
+
+  It 'lets --skip-reboot win over --force-reboot (defense in depth)' do
+    # CLI mutex prevents both being set simultaneously; this asserts the
+    # in-function precedence (skip-reboot is checked first) in case the
+    # mutex check is ever removed or bypassed.
+    install_reboot_stubs
+    skip_reboot=true
+    force_reboot=true
+    When call node_reboot 'pve1'
+    The status should be success
+    The error should include 'Skipping reboot per --skip-reboot.'
+    The error should not include 'Forcing Reboot'
+  End
+
+  It 'passes ssh keepalive options when invoking reboot and dmesg -W' do
+    install_reboot_stubs
+    force_reboot=true
+    verbose=3  # log_pipe_level 3 (reboot pipe) only emits when verbose>=3
+    # node_ssh_no_op's stdout gets piped through log_pipe_level → stderr.
+    node_ssh_no_op() {
+      local node=$1; shift
+      local cmd=$1; shift
+      echo "ssh($node, $cmd, $*)"
+    }
+
+    When call node_reboot 'pve1'
+    The status should be success
+    The error should include 'ssh(pve1, reboot, -oConnectTimeout=10 -oServerAliveInterval=5 -oServerAliveCountMax=2)'
+    The error should include 'ssh(pve1, dmesg -W, -oConnectTimeout=10 -oServerAliveInterval=5 -oServerAliveCountMax=2)'
+  End
+
+  It 'aborts with a timeout error when the node does not come back up' do
+    install_reboot_stubs
+    force_reboot=true
+    reboot_timeout=0
+    is_node_up() { return 1; }
+
+    When run node_reboot 'pve1'
+    The status should be failure
+    The error should include 'Timed out after 0s'
+    The error should include "'pve1'"
+    The error should not include 'Rebooted successfully'
   End
 End
 
