@@ -753,8 +753,21 @@ OPTIONS
         with the fewest guests upgrades first.
 
     -v, --verbose
-        Log actions and details to stdout. Use multiple times (e.g. -vv) for
-        increasingly detailed output intended for debugging.
+        Log actions and details. Each repetition unlocks an additional log
+        level (all lower levels stay enabled):
+
+            (none)    INFO — status, warnings, errors
+            -v        + VERBOSE — high-level script-flow notes
+            -vv       + DEBUG — per-node ssh commands as they run
+            -vvv      + DEBUG2 — full pvesh JSON responses; timestamps
+                       also gain millisecond precision
+            -vvvv     + DEBUG3 — internal background-job lifecycle
+
+        Levels beyond -vvvv are for script development:
+
+            -vvvvv    also pass -v to ssh (remote login verbose)
+            -vvvvvv   also enable bash 'set -x' (command trace)
+            -vvvvvvv  also pass another -v to ssh (ssh -vv)
 
     -h, --help
         Show this message.
