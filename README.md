@@ -87,6 +87,11 @@ OPTIONS
     --allow-running-tasks
         Disable check for running tasks on the cluster prior to upgrade.
 
+    --preserve-discovery-order
+        When using --cluster-node, do not reorder the upgrade sequence
+        ascending by running guest count. Default is to sort so the node
+        with the fewest guests upgrades first.
+
     -v, --verbose
         Log actions and details to stdout. When multiple -v options are given,
         enable verbose logging for de-bugging purposes.

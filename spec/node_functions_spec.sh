@@ -76,6 +76,66 @@ Describe 'node_get_running_guest_count'
   End
 End
 
+Describe 'sort_nodes_by_guest_count'
+  Include proxmox-upgrade-cluster.sh
+
+  # The function uses `local -n nodes`, so the caller-side array must NOT
+  # also be named `nodes` (bash would warn about a circular nameref).
+  # main() passes `upgrade_nodes`, so these tests mirror that.
+
+  It 'reorders an array ascending by running guest count' do
+    node_get_running_guest_count() {
+      case "$1" in
+        pveA) echo '5' ;;
+        pveB) echo '1' ;;
+        pveC) echo '3' ;;
+      esac
+    }
+
+    capture() {
+      local -a upgrade_nodes=(pveA pveB pveC)
+      sort_nodes_by_guest_count upgrade_nodes
+      printf '%s\n' "${upgrade_nodes[@]}"
+    }
+
+    When call capture
+    The line 1 of output should eq 'pveB'
+    The line 2 of output should eq 'pveC'
+    The line 3 of output should eq 'pveA'
+    The error should include 'Reordering upgrade sequence'
+  End
+
+  It 'is stable on equal counts (preserves input order)' do
+    node_get_running_guest_count() { echo '2'; }
+
+    capture() {
+      local -a upgrade_nodes=(pve3 pve1 pve2)
+      sort_nodes_by_guest_count upgrade_nodes
+      printf '%s\n' "${upgrade_nodes[@]}"
+    }
+
+    When call capture
+    The line 1 of output should eq 'pve3'
+    The line 2 of output should eq 'pve1'
+    The line 3 of output should eq 'pve2'
+    The error should include 'Reordering upgrade sequence'
+  End
+
+  It 'handles a single-element array' do
+    node_get_running_guest_count() { echo '7'; }
+
+    capture() {
+      local -a upgrade_nodes=(soloN)
+      sort_nodes_by_guest_count upgrade_nodes
+      printf '%s\n' "${upgrade_nodes[@]}"
+    }
+
+    When call capture
+    The output should eq 'soloN'
+    The error should include 'Reordering upgrade sequence'
+  End
+End
+
 Describe 'node_number_of_running_tasks'
   Include proxmox-upgrade-cluster.sh
 

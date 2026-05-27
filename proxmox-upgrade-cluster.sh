@@ -16,6 +16,7 @@ declare dry_run=false
 declare use_maintenance_mode=true
 declare allow_running_guests=false
 declare allow_running_tasks=false
+declare preserve_discovery_order=false
 declare -i reboot_timeout=600
 declare -i verbose=0
 
@@ -339,6 +340,26 @@ node_get_running_guest_count() {
 
   log_prefix "$node" log_verbose "Number of guests running: $total"
   echo "$total"
+}
+
+sort_nodes_by_guest_count() {
+  # Reorder the named array ascending by running guest count. Stable so
+  # equal-count nodes keep their input order. The nameref is named
+  # `nodes_inout` (not `nodes` like read-only helpers above) so shellcheck
+  # doesn't conflate the array-write with the read-only namerefs.
+  local -n nodes_inout=${1?}
+  local -a sorted=()
+  local node count
+  local lines=""
+
+  log_status "Reordering upgrade sequence by running guest count (ascending)..."
+  for node in "${nodes_inout[@]}"; do
+    count=$(node_get_running_guest_count "$node")
+    lines+="$count $node"$'\n'
+  done
+
+  mapfile -t sorted < <(printf '%s' "$lines" | sort -ns -k1,1 | awk '{print $2}')
+  nodes_inout=("${sorted[@]}")
 }
 
 node_get_offline_count() {
@@ -708,6 +729,11 @@ OPTIONS
     --allow-running-tasks
         Disable check for running tasks on the cluster prior to upgrade.
 
+    --preserve-discovery-order
+        When using --cluster-node, do not reorder the upgrade sequence
+        ascending by running guest count. Default is to sort so the node
+        with the fewest guests upgrades first.
+
     --reboot-timeout SECONDS
         Maximum number of seconds to wait for a node to come back up after a
         reboot before aborting the upgrade. Defaults to $reboot_timeout.
@@ -808,6 +834,9 @@ process_args() {
         ;;
       --allow-running-tasks)
         allow_running_tasks=true
+        ;;
+      --preserve-discovery-order)
+        preserve_discovery_order=true
         ;;
       --reboot-timeout)
         shift
@@ -940,6 +969,10 @@ main() {
   if [[ ${#upgrade_nodes[@]} -eq 0 ]]; then
     log_success "No nodes need updates. Exiting."
     exit 0
+  fi
+
+  if [[ -n "${cluster_node:-}" && "$preserve_discovery_order" == false && ${#upgrade_nodes[@]} -gt 1 ]]; then
+    sort_nodes_by_guest_count upgrade_nodes
   fi
 
   log_success "Using '${upgrade_nodes[*]}' as node upgrade sequence."

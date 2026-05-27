@@ -270,6 +270,20 @@ Describe 'process_args --jq-bin (removed)'
   End
 End
 
+Describe 'process_args --preserve-discovery-order'
+  Include proxmox-upgrade-cluster.sh
+
+  It 'defaults to false' do
+    When call process_args '--cluster-node' 'pve1'
+    The variable preserve_discovery_order should eq 'false'
+  End
+
+  It 'sets preserve_discovery_order to true when passed' do
+    When call process_args '--cluster-node' 'pve1' '--preserve-discovery-order'
+    The variable preserve_discovery_order should eq 'true'
+  End
+End
+
 Describe 'process_args --reboot-timeout'
   Include proxmox-upgrade-cluster.sh
 
