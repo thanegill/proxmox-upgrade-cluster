@@ -186,9 +186,33 @@ Describe 'strict mode tests' do
 End
 ```
 
-### Parameters Directive Limitations
+### Parameters Directive
 
-ShellSpec 0.28.1 has limitations with the `Parameters` directive:
+ShellSpec 0.28.1 `Parameters` works cleanly for **tabular tests with scalar
+inputs and scalar expected values**:
+
+```bash
+Describe 'boolean flag defaults' do
+  Parameters
+    ssh_key_auth_only        true
+    dry_run                  false
+    use_maintenance_mode     true
+    preserve_discovery_order false
+  End
+
+  It "$1 defaults to $2" do
+    The variable "$1" should eq "$2"
+  End
+End
+```
+
+Also fine for `(flag, var, value)` triples driving multiple boolean CLI
+flags through one `It` block, and for any test where the variation is
+just plain strings.
+
+#### Parameters Directive Limitations
+
+`Parameters` does NOT handle:
 
 - **Function name substitution does not work** — `<func_name>` in a command position is treated literally, not substituted
 - **Space-containing values break parsing** — parameters with spaces (e.g., `'test alert message'`) cause "command not found" errors
@@ -290,6 +314,91 @@ When changing how a function emits data (e.g. one-per-line vs space-joined),
 audit every mock that simulates it. An `echo ''` mock that was benign under
 word-splitting becomes a one-element-with-empty-string array under
 `mapfile -t`, which can drive callers into loops they never reached before.
+
+## Fixtures and Shared Helpers
+
+When multiple `It` blocks share boilerplate (JSON-shaped mocks, baseline
+stubs, common setup), extract a file-scope helper function. Several
+patterns are established in the suite — match them so the codebase stays
+consistent.
+
+### The global-closure pattern (for parameterised mocks)
+
+Bash function definitions don't close over caller-local variables. When a
+fixture helper installs a mock that needs to return a value the helper
+was passed, the value must live in the **global** scope so the inner
+function reads it at call time, not at definition time:
+
+```bash
+make_manager_status_pvesh() {
+  local pairs=()
+  while (( $# )); do
+    pairs+=("\"$1\":\"$2\"")
+    shift 2
+  done
+  # _mgr_status_json is a GLOBAL — node_pvesh reads it at call time,
+  # well after make_manager_status_pvesh has returned.
+  _mgr_status_json="{\"manager_status\":{\"node_status\":{$(IFS=,; echo "${pairs[*]}")}}}"
+  node_pvesh() { echo "$_mgr_status_json"; }
+}
+```
+
+Convention: prefix the globals with `_` to signal "fixture-internal,
+don't read from tests directly." Examples in the suite:
+`_pbt_uname`, `_pbt_kernel_list`, `_grub_uname`, `_mgr_status_json`,
+`_status_array_json`, `_hostname_value`.
+
+### `Before do/End` does NOT install function definitions
+
+`Before do/End` runs in its own subshell. Function definitions made
+inside it are scoped to that subshell and **don't survive into the
+It-block body**. Symptom: `When run main` exits 127 (command not
+found) because the mock isn't visible.
+
+```bash
+# WRONG — mocks are lost.
+Before do
+  is_node_up() { return 0; }
+End
+
+It 'test' do
+  When run main '--cluster-node' 'pve1'  # fails: is_node_up not defined
+End
+
+# RIGHT — file-scope helper installs the mocks; each It calls it.
+install_main_happy_path_stubs() {
+  is_node_up() { return 0; }
+  # ... other stubs
+}
+
+It 'test' do
+  install_main_happy_path_stubs
+  When run main '--cluster-node' 'pve1'
+End
+```
+
+Bash globally scopes nested function definitions (a function defined
+*inside* another function lives at the script's global scope), which is
+why the helper-function approach works where the `Before` hook doesn't.
+
+### Existing helpers in the suite
+
+These live at file scope, near the tests that use them, and follow the
+global-closure convention where relevant. Reuse them rather than rolling
+new inline mocks:
+
+| Helper | File | Purpose |
+|---|---|---|
+| `capture_array <var> <args...>` | `process_args_spec.sh` | Run real `process_args`, then print the named array element-by-element so a `When call` test can assert against array shape (which doesn't normally survive subshells). |
+| `install_main_happy_path_stubs` | `main_spec.sh` | All-success stubs for `main()`'s health-check + apt-update + upgrade flow. Each test overrides one stub to drive the branch under test. |
+| `install_reboot_stubs` | `upgrade_sequence_spec.sh` | All-success stubs + default scalars for `node_reboot` tests. |
+| `install_update_sequence_happy_stubs` | `upgrade_sequence_spec.sh` | No-op stubs for the four upgrade stages (`node_pre_upgrade`, `node_upgrade`, `node_reboot`, `node_post_upgrade`). |
+| `record_invocations <fn>` | `upgrade_sequence_spec.sh` | Install a stub that appends `$1` to a tempfile (`$invocations`); use to verify per-node calls under `wait_all_succeed` where subshell-internal array mutations would otherwise be lost. |
+| `make_pbt_node_ssh <uname> <kernel-list-lines...>` | `node_functions_spec.sh` | `node_ssh` mock for `node_needs_reboot`'s proxmox-boot-tool branch. |
+| `make_grub_node_ssh <uname> <grub-lines...>` | `node_functions_spec.sh` | `node_ssh` mock for `node_needs_reboot`'s grub.cfg fallback branch. |
+| `make_manager_status_pvesh <node> <status> ...` | `node_functions_spec.sh` | `node_pvesh` mock returning HA manager_status JSON from `(node, status)` pairs. |
+| `make_status_array_pvesh <status...>` | `node_functions_spec.sh` | `node_pvesh` mock returning a JSON status-array for `node_get_running_count`. |
+| `make_hostname_node_ssh <hostname>` | `node_functions_spec.sh` | `node_ssh` mock that answers `hostname` queries. Use with `make_manager_status_pvesh` for `node_get_mode` tests. |
 
 ## Testing Log Output
 
@@ -408,6 +517,12 @@ End
 | `Mock` block can't keep state across calls | Mock runs in a subshell; for stateful counters use an inline function override |
 | `satisfy` matcher errors with `value: unbound` | Read the subject as `${value:-}` — the matcher runs under `nounset` |
 | Need a value mid-`When call` for a later matcher | `$output` isn't exposed between assertions; do the comparison inside the driver function and assert on its stdout |
+| `When run` test exits 127 ("command not found") | A mock the test expected isn't visible inside the subshell. `Before do/End` doesn't install functions — use a file-scope helper instead. |
+| Multi-line `Before` raises "Unexpected End" | `Before` requires `do` for multi-line bodies (`Before do ... End`). `Before 'one-liner'` is the single-statement form. |
+| Test times out / hangs at `verbose>=6` | `process_args` enables `set -x` globally at `verbose>=6` to aid live debugging. Don't drive that ladder from tests — verbose=5 is enough for the ssh-verbosity branch; skip 6+. |
+| ERR trap test doesn't fire on intermediate failures | The trap fires via errexit, but `When call` doesn't enable `set -e`. Add `Set errexit:on` at the Describe scope. |
+| Subshell mock writes (e.g. `wait_all_succeed`) lose `+=` updates | Use the `record_invocations <fn>` helper — the tempfile survives the subshell boundary. |
+| shellcheck SC2178 on `local -n` followed by array write | Known false-positive: shellcheck can't model namerefs. Rename the nameref to something distinct from other read-only namerefs in the file (e.g. `nodes_inout`) to avoid cross-function aliasing, plus a `# shellcheck disable=SC2178` if needed. |
 
 ## Test File Organization
 
@@ -415,11 +530,12 @@ Split tests by feature area into separate spec files:
 
 ```
 spec/
-  variables_spec.sh        # Defaults and configuration
+  variables_spec.sh        # Default values for script-level variables
   logging_spec.sh          # All log_* functions
   process_args_spec.sh     # CLI argument parsing
-  node_functions_spec.sh   # Node SSH, pvesh, maintenance, reboot
-  upgrade_sequence_spec.sh # Upgrade flow functions
+  main_spec.sh             # main() flow control + jq prerequisite + sort wiring
+  node_functions_spec.sh   # Node SSH, pvesh, maintenance, reboot, kernel detection
+  upgrade_sequence_spec.sh # Upgrade flow (enter/exit maintenance, reboot, run_update_sequence)
   wait_all_succeed_spec.sh # Background job management
 ```
 
@@ -428,6 +544,11 @@ spec/
 1. Find the appropriate spec file (or create one)
 2. Add a `Describe` block matching the function name
 3. Use `Include proxmox-upgrade-cluster.sh` at the top level
-4. Mock any functions that call ssh or have side effects
-5. Always add stderr expectations for log output to avoid warnings
-6. Run with `nix develop -c shellspec spec/your_file.sh`
+4. **Reuse existing fixtures** before rolling your own — the helpers listed
+   under "Fixtures and Shared Helpers" cover most JSON-mock and baseline-stub
+   needs. If your test's setup repeats a pattern that's already in another
+   It-block, lift it to a file-scope helper instead of pasting the boilerplate.
+5. Mock any functions that call ssh or have side effects
+6. Always add stderr expectations for log output to avoid the "There was
+   output to stderr but not found expectation" warning
+7. Run with `nix develop -c shellspec spec/your_file.sh`
