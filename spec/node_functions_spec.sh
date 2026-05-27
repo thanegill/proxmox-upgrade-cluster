@@ -196,6 +196,17 @@ Describe 'node_not_running_task'
     The status should be failure
     The error should include 'Running a task'
   End
+
+  It 'returns failure (not 0) when task count is a multiple of 256' do
+    # Old `return $task_count` wrapped mod-256, so 256 active tasks reported
+    # success — i.e. "no tasks running" — to the caller.
+    verbose=1
+    node_number_of_running_tasks() { echo '256'; }
+
+    When call node_not_running_task 'pve1'
+    The status should be failure
+    The error should include 'Running a task'
+  End
 End
 
 Describe 'node_has_updates'

@@ -424,10 +424,11 @@ node_not_running_task() {
   local -i task_count
   task_count=$(node_number_of_running_tasks "$node")
   log_prefix "${FUNCNAME[0]}" log_prefix "$node" log_debug "Task Count: $task_count"
-  if [[ $task_count -gt 0 ]]; then
+  if (( task_count > 0 )); then
     log_prefix "$node" log_info "Running a task. Task Count: $task_count"
+    return 1
   fi
-  return $task_count
+  return 0
 }
 
 any_nodes_running_tasks() {
