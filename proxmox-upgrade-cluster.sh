@@ -253,12 +253,12 @@ all_nodes_up() {
 }
 
 get_cluster_nodes() {
-  # Get list of all cluster nodes from a node
+  # Emit one node per line so callers can read into an array via mapfile -t.
   local node=${1?}
   if [[ "$cluster_node_use_ip" == true ]]; then
-    node_pvesh "$node" "cluster/status" | $jq_bin -rc '[.[] | select(.type == "node") | .ip] | join(" ")'
+    node_pvesh "$node" "cluster/status" | $jq_bin -r '.[] | select(.type == "node") | .ip'
   else
-    node_pvesh "$node" "cluster/status" | $jq_bin -rc '[.[] | select(.type == "node") | .name] | join(" ")'
+    node_pvesh "$node" "cluster/status" | $jq_bin -r '.[] | select(.type == "node") | .name'
   fi
 }
 
@@ -287,7 +287,7 @@ node_has_updates() {
 
 get_nodes_upgradeable() {
   local -n nodes=${1?}
-  local -a nodes_with_updates
+  local -a nodes_with_updates=()
 
   for node in "${nodes[@]}"; do
     if node_has_updates "$node"; then
@@ -298,7 +298,12 @@ get_nodes_upgradeable() {
       log_prefix "$node" log_verbose "Removed from upgrade sequence."
     fi
   done
-  echo "${nodes_with_updates[@]}"
+  # Emit one node per line so callers can read into an array via mapfile -t.
+  # Guard against the empty case — printf '%s\n' "${empty[@]}" would emit
+  # a single blank line.
+  if [[ ${#nodes_with_updates[@]} -gt 0 ]]; then
+    printf '%s\n' "${nodes_with_updates[@]}"
+  fi
 }
 
 node_apt_update() {
@@ -794,8 +799,7 @@ main() {
     if ! is_node_proxmox "$cluster_node"; then
       exit 1
     fi
-    # shellcheck disable=2207
-    cluster_nodes=($(get_cluster_nodes "$cluster_node"))
+    mapfile -t cluster_nodes < <(get_cluster_nodes "$cluster_node")
   fi
   log_success "Using '${cluster_nodes[*]}' as all nodes to check."
 
@@ -842,8 +846,7 @@ main() {
     upgrade_nodes=("${cluster_nodes[@]}")
     log_warning "Forcing upgrade for all nodes, not just those that have updates available."
   else
-    # shellcheck disable=2207
-    upgrade_nodes=($(get_nodes_upgradeable cluster_nodes))
+    mapfile -t upgrade_nodes < <(get_nodes_upgradeable cluster_nodes)
   fi
 
   if [[ "$use_maintenance_mode" == false ]]; then

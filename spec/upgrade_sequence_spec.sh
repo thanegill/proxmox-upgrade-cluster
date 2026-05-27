@@ -260,32 +260,31 @@ End
 Describe 'get_nodes_upgradeable'
   Include proxmox-upgrade-cluster.sh
 
-  It 'returns nodes that have updates' do
+  It 'emits nodes that have updates, one per line' do
     Mock node_has_updates
       exit 0
     End
     cluster_nodes=("pve1" "pve2")
 
     When call get_nodes_upgradeable cluster_nodes
-    The output should include 'pve1'
-    The output should include 'pve2'
+    The line 1 of output should eq 'pve1'
+    The line 2 of output should eq 'pve2'
+    The lines of output should eq 2
     The error should include 'Updates available'
   End
 
   It 'excludes nodes without updates' do
-    call_count=0
-    Mock node_has_updates
-      call_count=$((call_count + 1))
-      [[ $call_count -eq 1 ]] && exit 0 || exit 1
-    End
+    # Inline override — Mock's subshell would lose the persistent counter.
+    node_has_updates() { [[ "$1" == 'pve1' ]]; }
     cluster_nodes=("pve1" "pve2")
 
     When call get_nodes_upgradeable cluster_nodes
-    The output should include 'pve1'
+    The output should eq 'pve1'
+    The lines of output should eq 1
     The error should include 'Updates available'
   End
 
-  It 'returns empty string when called with empty array' do
+  It 'returns empty output when called with empty array' do
     Mock node_has_updates
       exit 0
     End
@@ -293,6 +292,17 @@ Describe 'get_nodes_upgradeable'
 
     When call get_nodes_upgradeable cluster_nodes
     The output should eq ''
+  End
+
+  It 'returns empty output when no nodes have updates' do
+    Mock node_has_updates
+      exit 1
+    End
+    cluster_nodes=("pve1" "pve2")
+
+    When call get_nodes_upgradeable cluster_nodes
+    The output should eq ''
+    The error should include 'No updates available'
   End
 End
 
@@ -361,7 +371,7 @@ Describe 'main'
       node_get_offline_count() { echo '0'; }
       any_nodes_running_tasks() { :; }
       apt_update_nodes() { :; }
-      get_nodes_upgradeable() { echo ''; }
+      get_nodes_upgradeable() { :; }
       main
     }
     When run test_main_dry_run
@@ -456,7 +466,7 @@ Describe 'main'
       End
       allow_running_tasks=true
       is_node_up() { return 0; }; is_node_proxmox() { return 0; }; all_nodes_up() { return 0; }
-      node_get_offline_count() { echo '0'; }; apt_update_nodes() { :; }; get_nodes_upgradeable() { echo ''; }
+      node_get_offline_count() { echo '0'; }; apt_update_nodes() { :; }; get_nodes_upgradeable() { :; }
       main
     }
     When run test_main_allow_tasks
@@ -507,7 +517,7 @@ Describe 'main'
       End
       is_node_up() { return 0; }; is_node_proxmox() { return 0; }; all_nodes_up() { return 0; }
       node_get_offline_count() { echo '0'; }; any_nodes_running_tasks() { :; }; apt_update_nodes() { :; }
-      get_nodes_upgradeable() { echo ''; }
+      get_nodes_upgradeable() { :; }
       main
     }
     When run test_main_run_sequence
@@ -518,7 +528,7 @@ Describe 'main'
   It 'uses cluster_nodes directly when --node is passed instead of --cluster-node' do
     test_main_node_array() {
       process_args() { :; }
-      verbose=0; dry_run=false; get_cluster_nodes() { echo ''; }
+      verbose=0; dry_run=false; get_cluster_nodes() { :; }
       Mock local_ssh
         exit 0
       End
@@ -541,7 +551,7 @@ Describe 'main'
       End
       is_node_up() { return 0; }; is_node_proxmox() { return 0; }; all_nodes_up() { return 0; }
       node_get_offline_count() { echo '0'; }; any_nodes_running_tasks() { :; }; apt_update_nodes() { :; }
-      get_nodes_upgradeable() { echo ''; }
+      get_nodes_upgradeable() { :; }
       use_maintenance_mode=false
       main
     }

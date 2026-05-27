@@ -13,19 +13,38 @@ End
 Describe 'get_cluster_nodes'
   Include proxmox-upgrade-cluster.sh
 
-  It 'returns node names from pvesh output' do
+  It 'returns node names from pvesh output, one per line' do
     node_pvesh() { echo '[{"type":"node","name":"pve1"},{"type":"node","name":"pve2"}]'; }
 
     When call get_cluster_nodes 'pve1'
-    The output should eq 'pve1 pve2'
+    The line 1 of output should eq 'pve1'
+    The line 2 of output should eq 'pve2'
+    The lines of output should eq 2
   End
 
-  It 'returns node IPs when cluster_node_use_ip is true' do
+  It 'returns node IPs when cluster_node_use_ip is true, one per line' do
     cluster_node_use_ip=true
     node_pvesh() { echo '[{"type":"node","ip":"10.0.0.1"},{"type":"node","ip":"10.0.0.2"}]'; }
 
     When call get_cluster_nodes 'pve1'
-    The output should eq '10.0.0.1 10.0.0.2'
+    The line 1 of output should eq '10.0.0.1'
+    The line 2 of output should eq '10.0.0.2'
+    The lines of output should eq 2
+  End
+
+  It 'returns empty output for a single-element cluster of non-node types' do
+    node_pvesh() { echo '[{"type":"cluster","name":"mycluster"}]'; }
+
+    When call get_cluster_nodes 'pve1'
+    The output should eq ''
+  End
+
+  It 'returns a single line for a single-node cluster' do
+    node_pvesh() { echo '[{"type":"node","name":"solo"}]'; }
+
+    When call get_cluster_nodes 'pve1'
+    The output should eq 'solo'
+    The lines of output should eq 1
   End
 End
 
