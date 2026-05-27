@@ -17,6 +17,7 @@ declare use_maintenance_mode=true
 declare allow_running_guests=false
 declare allow_running_tasks=false
 declare jq_bin="jq"
+declare -i reboot_timeout=600
 declare -i verbose=0
 
 declare cluster_node
@@ -569,11 +570,21 @@ node_reboot() {
   log_prefix "$node" log_alert "Rebooting in 5 seconds! Press CTRL-C to cancel..."
   wait_sleep 5s
   log_prefix "$node" log_status "Rebooting, logging shutdown dmesg:"
-  node_ssh_no_op "$node" 'reboot' 2>&1 | log_pipe_level 3 "[$node]    " && true
-  node_ssh_no_op "$node" 'dmesg -W' 2>&1 | log_pipe_level 0 "[$node]    " && true
+  # Keepalive options bound the time we will wait for ssh to drop while the
+  # node is shutting down. Without these the dmesg -W follower can block until
+  # the kernel's default TCP timeout, which delays the come-back-up poll loop.
+  local -a reboot_ssh_opts=(-oConnectTimeout=10 -oServerAliveInterval=5 -oServerAliveCountMax=2)
+  node_ssh_no_op "$node" 'reboot' "${reboot_ssh_opts[@]}" 2>&1 | log_pipe_level 3 "[$node]    " && true
+  node_ssh_no_op "$node" 'dmesg -W' "${reboot_ssh_opts[@]}" 2>&1 | log_pipe_level 0 "[$node]    " && true
 
-  log_prefix "$node" log_status "Waiting to come back up..."
+  log_prefix "$node" log_status "Waiting up to ${reboot_timeout}s for node to come back up..."
+  SECONDS=0
   until is_node_up "$node"; do
+    if (( SECONDS >= reboot_timeout )); then
+      log_progress_end
+      log_prefix "$node" log_error "Timed out after ${reboot_timeout}s waiting for '$node' to come back up."
+      return 1
+    fi
     log_progress 1s
   done
   log_progress_end
@@ -684,6 +695,10 @@ OPTIONS
     --allow-running-tasks
         Disable check for running tasks on the cluster prior to upgrade.
 
+    --reboot-timeout SECONDS
+        Maximum number of seconds to wait for a node to come back up after a
+        reboot before aborting the upgrade. Defaults to $reboot_timeout.
+
     --jq-bin PATH
         Path to 'jq' binary.
 
@@ -774,6 +789,11 @@ process_args() {
         ;;
       --allow-running-tasks)
         allow_running_tasks=true
+        ;;
+      --reboot-timeout)
+        shift
+        error_on_no_arg "--reboot-timeout" "${1:-}"
+        reboot_timeout="$1"
         ;;
       --jq-bin)
         shift

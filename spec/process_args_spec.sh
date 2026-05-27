@@ -222,6 +222,27 @@ Describe 'process_args --jq-bin'
   End
 End
 
+Describe 'process_args --reboot-timeout'
+  Include proxmox-upgrade-cluster.sh
+
+  It 'overrides the default reboot_timeout' do
+    When call process_args '--cluster-node' 'pve1' '--reboot-timeout' '120'
+    The variable reboot_timeout should eq 120
+  End
+
+  It 'defaults to 600 seconds when not passed' do
+    When call process_args '--cluster-node' 'pve1'
+    The variable reboot_timeout should eq 600
+  End
+
+  It 'exits with error when no value is provided' do
+    verbose=1
+    When run process_args '--cluster-node' 'pve1' '--reboot-timeout'
+    The status should be failure
+    The error should include 'No arg passed'
+  End
+End
+
 Describe 'process_args --verbose'
   Include proxmox-upgrade-cluster.sh
 

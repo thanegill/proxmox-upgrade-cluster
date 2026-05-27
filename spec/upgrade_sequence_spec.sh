@@ -105,7 +105,7 @@ Describe 'node_reboot'
     The status should be success
     The error should include 'Forcing Reboot'
     The error should include 'Rebooting in 5 seconds'
-    The error should include 'Waiting to come back up'
+    The error should include 'for node to come back up'
     The error should include 'Rebooted successfully'
   End
 
@@ -133,8 +133,46 @@ Describe 'node_reboot'
     The status should be success
     The error should include "Needs to be rebooted"
     The error should include 'Rebooting in 5 seconds'
-    The error should include 'Waiting to come back up'
+    The error should include 'for node to come back up'
     The error should include 'Rebooted successfully'
+  End
+
+  It 'passes ssh keepalive options when invoking reboot and dmesg -W' do
+    force_reboot=true
+    dry_run=false
+    verbose=3  # log_pipe_level 3 (reboot pipe) only emits when verbose>=3
+    node_needs_reboot() { return 1; }
+    wait_sleep() { :; }
+    # node_ssh_no_op's stdout gets piped through log_pipe_level → log_output → stderr,
+    # so assert against stderr.
+    node_ssh_no_op() {
+      local node=$1; shift
+      local cmd=$1; shift
+      echo "ssh($node, $cmd, $*)"
+    }
+    is_node_up() { return 0; }
+
+    When call node_reboot 'pve1'
+    The status should be success
+    The error should include 'ssh(pve1, reboot, -oConnectTimeout=10 -oServerAliveInterval=5 -oServerAliveCountMax=2)'
+    The error should include 'ssh(pve1, dmesg -W, -oConnectTimeout=10 -oServerAliveInterval=5 -oServerAliveCountMax=2)'
+  End
+
+  It 'aborts with a timeout error when the node does not come back up' do
+    force_reboot=true
+    dry_run=false
+    verbose=1
+    reboot_timeout=0
+    node_needs_reboot() { return 1; }
+    wait_sleep() { :; }
+    node_ssh_no_op() { :; }
+    is_node_up() { return 1; }
+
+    When run node_reboot 'pve1'
+    The status should be failure
+    The error should include 'Timed out after 0s'
+    The error should include "'pve1'"
+    The error should not include 'Rebooted successfully'
   End
 End
 
