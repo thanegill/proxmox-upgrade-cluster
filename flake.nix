@@ -20,6 +20,7 @@
         {
           self',
           pkgs,
+          lib,
           ...
         }:
         {
@@ -54,12 +55,17 @@
           devShells.default = pkgs.mkShell {
             name = "proxmox-upgrade-cluster-dev";
 
-            buildInputs = with pkgs; [
-              bash
-              jq
-              shellcheck
-              shellspec
-            ];
+            buildInputs =
+              (with pkgs; [
+                bash
+                jq
+                shellcheck
+                shellspec
+              ])
+              # kcov drives `shellspec --kcov` for line/branch coverage. The
+              # upstream package only builds on Linux, so the dev shell on
+              # darwin skips it — run coverage via CI or a Linux container.
+              ++ lib.optionals pkgs.stdenv.isLinux [ pkgs.kcov ];
           };
 
         };

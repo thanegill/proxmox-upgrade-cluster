@@ -11,6 +11,16 @@ nix develop -c shellcheck proxmox-upgrade-cluster.sh  # Static analysis
 nix build .#default                         # Build the script via flake
 ```
 
+### Coverage (Linux only)
+
+```bash
+nix develop -c shellspec --kcov             # Coverage report → ./coverage/
+```
+
+`kcov` is in the dev shell only on Linux (the upstream package isn't
+available on darwin). Coverage reporting is `index.html` under
+`./coverage/`. Run via CI or a Linux container if you're on macOS.
+
 ## Test Structure
 
 Tests use the ShellSpec DSL with these keywords (case-sensitive):
