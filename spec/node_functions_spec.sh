@@ -196,19 +196,35 @@ Describe 'node_number_of_running_tasks'
   End
 End
 
+# Build a node_pvesh mock that returns a manager_status JSON document
+# from (node, status) pairs:
+#
+#   make_manager_status_pvesh pve1 online pve2 offline pve3 offline
+#
+# Uses a global to thread the JSON to the mock — function definitions in
+# bash don't close over caller-local variables, so the closure needs to
+# live in the global scope (same trick as make_pbt_node_ssh).
+make_manager_status_pvesh() {
+  local pairs=()
+  while (( $# )); do
+    pairs+=("\"$1\":\"$2\"")
+    shift 2
+  done
+  _mgr_status_json="{\"manager_status\":{\"node_status\":{$(IFS=,; echo "${pairs[*]}")}}}"
+  node_pvesh() { echo "$_mgr_status_json"; }
+}
+
 Describe 'node_get_offline_count'
   Include proxmox-upgrade-cluster.sh
 
   It 'returns count of offline nodes' do
-    node_pvesh() { echo '{"manager_status":{"node_status":{"pve1":"online","pve2":"offline","pve3":"offline"}}}'; }
-
+    make_manager_status_pvesh pve1 online pve2 offline pve3 offline
     When call node_get_offline_count 'pve1'
     The output should eq '2'
   End
 
   It 'returns 0 when all nodes are online' do
-    node_pvesh() { echo '{"manager_status":{"node_status":{"pve1":"online","pve2":"online"}}}'; }
-
+    make_manager_status_pvesh pve1 online pve2 online
     When call node_get_offline_count 'pve1'
     The output should eq '0'
   End
@@ -219,8 +235,7 @@ Describe 'node_get_mode'
 
   It 'returns node mode from pvesh output' do
     node_ssh() { echo 'pve1'; }
-    node_pvesh() { echo '{"manager_status":{"node_status":{"pve1":"online"}}}'; }
-
+    make_manager_status_pvesh pve1 online
     When call node_get_mode 'pve1'
     The output should eq 'online'
   End
@@ -231,8 +246,7 @@ Describe 'node_get_mode'
     node_ssh() {
       [[ "$2" == 'hostname' ]] && echo 'pve-prod-1'
     }
-    node_pvesh() { echo '{"manager_status":{"node_status":{"pve-prod-1":"maintenance"}}}'; }
-
+    make_manager_status_pvesh pve-prod-1 maintenance
     When call node_get_mode '10.0.0.4'
     The output should eq 'maintenance'
   End
@@ -241,8 +255,7 @@ Describe 'node_get_mode'
     node_ssh() {
       [[ "$2" == 'hostname' ]] && echo 'pve.dc1.example.com'
     }
-    node_pvesh() { echo '{"manager_status":{"node_status":{"pve.dc1.example.com":"online"}}}'; }
-
+    make_manager_status_pvesh pve.dc1.example.com online
     When call node_get_mode 'pve1'
     The output should eq 'online'
   End
@@ -251,15 +264,14 @@ Describe 'node_get_mode'
     node_ssh() {
       [[ "$2" == 'hostname' ]] && echo '1node-prod'
     }
-    node_pvesh() { echo '{"manager_status":{"node_status":{"1node-prod":"online"}}}'; }
-
+    make_manager_status_pvesh 1node-prod online
     When call node_get_mode 'pve1'
     The output should eq 'online'
   End
 
   It 'does not leak $hostname into the caller scope' do
     node_ssh() { echo 'pve1'; }
-    node_pvesh() { echo '{"manager_status":{"node_status":{"pve1":"online"}}}'; }
+    make_manager_status_pvesh pve1 online
     leak_check() {
       unset hostname
       node_get_mode 'pve1' >/dev/null
