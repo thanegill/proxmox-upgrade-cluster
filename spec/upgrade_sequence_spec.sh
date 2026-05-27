@@ -258,11 +258,18 @@ Describe 'node_run_update_sequence'
   # The trap fires via errexit propagation; tests must run with set -e on.
   Set errexit:on
 
-  It 'runs all upgrade steps on the success path without warning' do
-    node_pre_upgrade() { :; }
-    node_upgrade() { :; }
-    node_reboot() { :; }
+  # Install no-op stubs for the four stages of the upgrade sequence. Each
+  # It overrides whichever stub(s) it wants to fail or trace. Mirrors the
+  # install_main_happy_path_stubs pattern in main_spec.sh.
+  install_update_sequence_happy_stubs() {
+    node_pre_upgrade()  { :; }
+    node_upgrade()      { :; }
+    node_reboot()       { :; }
     node_post_upgrade() { :; }
+  }
+
+  It 'runs all upgrade steps on the success path without warning' do
+    install_update_sequence_happy_stubs
 
     When call node_run_update_sequence 'pve1'
     The status should be success
@@ -272,8 +279,8 @@ Describe 'node_run_update_sequence'
   End
 
   It 'warns about maintenance and does NOT auto-recover when node_upgrade fails' do
+    install_update_sequence_happy_stubs
     use_maintenance_mode=true
-    node_pre_upgrade() { :; }
     node_upgrade() { return 1; }
     node_reboot() { echo 'should not reach reboot' >&2; }
     node_post_upgrade() { echo 'should not reach post' >&2; }
@@ -288,6 +295,7 @@ Describe 'node_run_update_sequence'
   End
 
   It 'fires the trap when node_pre_upgrade fails (maintenance may have been entered)' do
+    install_update_sequence_happy_stubs
     use_maintenance_mode=true
     node_pre_upgrade() { return 1; }
     node_upgrade() { echo 'should not reach upgrade' >&2; }
@@ -301,9 +309,8 @@ Describe 'node_run_update_sequence'
   End
 
   It 'fires the trap when node_reboot fails (post_upgrade never exits maintenance)' do
+    install_update_sequence_happy_stubs
     use_maintenance_mode=true
-    node_pre_upgrade() { :; }
-    node_upgrade() { :; }
     node_reboot() { return 1; }
     node_post_upgrade() { echo 'should not reach post' >&2; }
 
@@ -314,10 +321,8 @@ Describe 'node_run_update_sequence'
   End
 
   It 'fires the trap when node_post_upgrade fails (e.g. before its exit_maintenance call)' do
+    install_update_sequence_happy_stubs
     use_maintenance_mode=true
-    node_pre_upgrade() { :; }
-    node_upgrade() { :; }
-    node_reboot() { :; }
     # Fail post_upgrade — exit_maintenance inside it never runs.
     node_post_upgrade() { return 1; }
 
@@ -331,11 +336,9 @@ Describe 'node_run_update_sequence'
     # node_run_update_sequence captures $node by value at install-time
     # (interpolated into the trap body). Verify with a non-default node
     # name; the log_prefix tags the warning with [<node>].
+    install_update_sequence_happy_stubs
     use_maintenance_mode=true
-    node_pre_upgrade() { :; }
     node_upgrade() { return 1; }
-    node_reboot() { :; }
-    node_post_upgrade() { :; }
 
     When run node_run_update_sequence 'pveXYZ'
     The status should be failure
@@ -344,11 +347,9 @@ Describe 'node_run_update_sequence'
   End
 
   It 'does not warn when use_maintenance_mode is false even on failure' do
+    install_update_sequence_happy_stubs
     use_maintenance_mode=false
-    node_pre_upgrade() { :; }
     node_upgrade() { return 1; }
-    node_reboot() { :; }
-    node_post_upgrade() { :; }
 
     When run node_run_update_sequence 'pve1'
     The status should be failure
@@ -356,10 +357,7 @@ Describe 'node_run_update_sequence'
   End
 
   It 'clears the ERR trap on success so it does not leak across nodes' do
-    node_pre_upgrade() { :; }
-    node_upgrade() { :; }
-    node_reboot() { :; }
-    node_post_upgrade() { :; }
+    install_update_sequence_happy_stubs
 
     check_trap() {
       node_run_update_sequence 'pve1' >/dev/null 2>&1
@@ -376,12 +374,10 @@ Describe 'node_run_update_sequence'
     # internal non-zero exits fired the maintenance warning even though the
     # parent flow succeeded. Assert errtrace stays off — that's the contract
     # the trap design relies on.
+    install_update_sequence_happy_stubs
     node_pre_upgrade() {
       [[ $- == *E* ]] && echo "ERRTRACE-LEAKED" >&2
     }
-    node_upgrade()      { :; }
-    node_reboot()       { :; }
-    node_post_upgrade() { :; }
 
     When call node_run_update_sequence 'pve1'
     The status should be success
