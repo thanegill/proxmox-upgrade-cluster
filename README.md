@@ -154,68 +154,74 @@ EXAMPLE
 ```
 
 ## Example very-verbose dry run
-```shell
-> ./proxmox-upgrade-cluster.sh -c pve1 -vv --dry-run
-[2026-01-26 17:26:08] Running in dry run mode.
-[2026-01-26 17:26:08] Getting all cluster nodes from node 'pve1'...
-[2026-01-26 17:26:08] [pve1] Running command 'whoami'
-[2026-01-26 17:26:08] [pve1] Running command 'hash pvesh'
-[2026-01-26 17:26:08] [pve1] Running command 'pvesh get cluster/status  --output-form=json'
-[2026-01-26 17:26:10] Using 'pve2 pve1 pve3' as all nodes to check.
-[2026-01-26 17:26:10] Checking if any nodes are not proxmox...
-[2026-01-26 17:26:10] [pve2] Running command 'hash pvesh'
-[2026-01-26 17:26:10] [pve1] Running command 'hash pvesh'
-[2026-01-26 17:26:10] [pve3] Running command 'hash pvesh'
-[2026-01-26 17:26:10] All nodes are proxmox.
-[2026-01-26 17:26:10] Checking if any nodes are currently down...
-[2026-01-26 17:26:10] [pve2] Running command 'whoami'
-[2026-01-26 17:26:10] [pve2] Node is up.
-[2026-01-26 17:26:10] [pve1] Running command 'whoami'
-[2026-01-26 17:26:11] [pve1] Node is up.
-[2026-01-26 17:26:11] [pve3] Running command 'whoami'
-[2026-01-26 17:26:11] [pve3] Node is up.
-[2026-01-26 17:26:11] All nodes are up.
-[2026-01-26 17:26:11] Checking if any nodes are currently not online...
-[2026-01-26 17:26:11] [pve2] Running command 'pvesh get cluster/ha/status/manager_status  --output-form=json'
-[2026-01-26 17:26:12] All nodes are online.
-[2026-01-26 17:26:12] Checking if any nodes currently have tasks running...
-[2026-01-26 17:26:12] [pve2] Running command 'pvesh get nodes/$(hostname)/tasks --source=active --output-form=json'
-[2026-01-26 17:26:14] No tasks are running.
-[2026-01-26 17:26:14] Checking for updates on all nodes...
-[2026-01-26 17:26:14] [pve2] Running command 'DEBIAN_FRONTEND=noninteractive apt-get update'
-[2026-01-26 17:26:15] [pve2]     Hit:1 https://deb.debian.org/debian trixie InRelease
-[2026-01-26 17:26:15] [pve2]     Hit:2 https://deb.debian.org/debian trixie-updates InRelease
-[2026-01-26 17:26:15] [pve2]     Hit:3 https://deb.debian.org/debian-security trixie-security InRelease
-[2026-01-26 17:26:15] [pve2]     Hit:4 http://download.proxmox.com/debian/ceph-squid trixie InRelease
-[2026-01-26 17:26:15] [pve2]     Hit:5 http://download.proxmox.com/debian/pve trixie InRelease
-[2026-01-26 17:26:15] [pve2]     Reading package lists...
-[2026-01-26 17:26:15] [pve1] Running command 'DEBIAN_FRONTEND=noninteractive apt-get update'
-[2026-01-26 17:26:16] [pve1]     Hit:1 https://deb.debian.org/debian trixie InRelease
-[2026-01-26 17:26:16] [pve1]     Hit:2 https://deb.debian.org/debian trixie-updates InRelease
-[2026-01-26 17:26:16] [pve1]     Hit:3 https://deb.debian.org/debian-security trixie-security InRelease
-[2026-01-26 17:26:16] [pve1]     Hit:4 http://download.proxmox.com/debian/ceph-squid trixie InRelease
-[2026-01-26 17:26:16] [pve1]     Hit:5 http://download.proxmox.com/debian/pve trixie InRelease
-[2026-01-26 17:26:16] [pve1]     Reading package lists...
-[2026-01-26 17:26:16] [pve3] Running command 'DEBIAN_FRONTEND=noninteractive apt-get update'
-[2026-01-26 17:26:17] [pve3]     Hit:1 https://deb.debian.org/debian trixie InRelease
-[2026-01-26 17:26:17] [pve3]     Hit:2 https://deb.debian.org/debian trixie-updates InRelease
-[2026-01-26 17:26:17] [pve3]     Hit:3 https://deb.debian.org/debian-security trixie-security InRelease
-[2026-01-26 17:26:17] [pve3]     Hit:4 http://download.proxmox.com/debian/ceph-squid trixie InRelease
-[2026-01-26 17:26:17] [pve3]     Hit:5 http://download.proxmox.com/debian/pve trixie InRelease
-[2026-01-26 17:26:17] [pve3]     Reading package lists...
-[2026-01-26 17:26:17] [pve2] Running command 'DEBIAN_FRONTEND=noninteractive apt-get -qq -s upgrade'
-[2026-01-26 17:26:18] [pve2]
-[2026-01-26 17:26:18] [pve2] No updates available.
-[2026-01-26 17:26:18] [pve2] Removed from upgrade sequence.
-[2026-01-26 17:26:18] [pve1] Running command 'DEBIAN_FRONTEND=noninteractive apt-get -qq -s upgrade'
-[2026-01-26 17:26:18] [pve1]
-[2026-01-26 17:26:18] [pve1] No updates available.
-[2026-01-26 17:26:18] [pve1] Removed from upgrade sequence.
-[2026-01-26 17:26:18] [pve3] Running command 'DEBIAN_FRONTEND=noninteractive apt-get -qq -s upgrade'
-[2026-01-26 17:26:19] [pve3]
-[2026-01-26 17:26:19] [pve3] No updates available.
-[2026-01-26 17:26:19] [pve3] Removed from upgrade sequence.
-[2026-01-26 17:26:19] No nodes need updates. Exiting.
+```text
+  ./proxmox-upgrade-cluster.sh -c pve1 -vv --dry-run
+[2026-05-27 17:02:36][INFO   ] Running in dry run mode.
+[2026-05-27 17:02:36][INFO   ] Getting all cluster nodes from node 'pve1'...
+[2026-05-27 17:02:36][DEBUG  ][pve1] Running command 'whoami'
+[2026-05-27 17:02:36][DEBUG  ][pve1] Node is up.
+[2026-05-27 17:02:36][DEBUG  ][pve1] Running command 'hash pvesh'
+[2026-05-27 17:02:36][DEBUG  ][pve1] Running command 'pvesh get cluster/status  --output-form=json'
+[2026-05-27 17:02:38][INFO   ] Using 'pve1 pve3 pve2' as all nodes to check.
+[2026-05-27 17:02:38][INFO   ] Checking if any nodes are currently down...
+[2026-05-27 17:02:38][DEBUG  ][pve1] Running command 'whoami'
+[2026-05-27 17:02:38][DEBUG  ][pve3] Running command 'whoami'
+[2026-05-27 17:02:38][DEBUG  ][pve2] Running command 'whoami'
+[2026-05-27 17:02:38][DEBUG  ][pve1] Node is up.
+[2026-05-27 17:02:38][DEBUG  ][pve2] Node is up.
+[2026-05-27 17:02:38][DEBUG  ][pve3] Node is up.
+[2026-05-27 17:02:38][INFO   ] All nodes are up.
+[2026-05-27 17:02:38][INFO   ] Checking if any nodes are not proxmox...
+[2026-05-27 17:02:38][DEBUG  ][pve1] Running command 'hash pvesh'
+[2026-05-27 17:02:38][DEBUG  ][pve3] Running command 'hash pvesh'
+[2026-05-27 17:02:38][DEBUG  ][pve2] Running command 'hash pvesh'
+[2026-05-27 17:02:38][INFO   ] All nodes are proxmox.
+[2026-05-27 17:02:38][INFO   ] Checking if any nodes are currently not online...
+[2026-05-27 17:02:38][DEBUG  ][pve1] Running command 'pvesh get cluster/ha/status/manager_status  --output-form=json'
+[2026-05-27 17:02:40][INFO   ] All nodes are online.
+[2026-05-27 17:02:40][INFO   ] Checking if any nodes currently have tasks running...
+[2026-05-27 17:02:40][DEBUG  ][pve1] Running command 'pvesh get nodes/$(hostname)/tasks --source=active --output-form=json'
+[2026-05-27 17:02:40][DEBUG  ][pve3] Running command 'pvesh get nodes/$(hostname)/tasks --source=active --output-form=json'
+[2026-05-27 17:02:40][DEBUG  ][pve2] Running command 'pvesh get nodes/$(hostname)/tasks --source=active --output-form=json'
+[2026-05-27 17:02:41][DEBUG  ][node_not_running_task][pve2] Task Count: 0
+[2026-05-27 17:02:41][DEBUG  ][node_not_running_task][pve3] Task Count: 0
+[2026-05-27 17:02:41][DEBUG  ][node_not_running_task][pve1] Task Count: 0
+[2026-05-27 17:02:41][INFO   ] No tasks are running.
+[2026-05-27 17:02:41][INFO   ] Checking for updates on all nodes...
+[2026-05-27 17:02:41][DEBUG  ][pve1] Running command 'DEBIAN_FRONTEND=noninteractive apt-get update'
+[2026-05-27 17:02:41][DEBUG  ][pve3] Running command 'DEBIAN_FRONTEND=noninteractive apt-get update'
+[2026-05-27 17:02:41][DEBUG  ][pve2] Running command 'DEBIAN_FRONTEND=noninteractive apt-get update'
+[2026-05-27 17:02:41][VERBOSE][pve2][apt] Hit:1 https://deb.debian.org/debian trixie InRelease
+[2026-05-27 17:02:41][VERBOSE][pve3][apt] Hit:1 https://deb.debian.org/debian trixie InRelease
+[2026-05-27 17:02:41][VERBOSE][pve1][apt] Hit:1 https://deb.debian.org/debian trixie InRelease
+[2026-05-27 17:02:41][VERBOSE][pve2][apt] Hit:2 https://deb.debian.org/debian trixie-updates InRelease
+[2026-05-27 17:02:41][VERBOSE][pve3][apt] Hit:2 https://deb.debian.org/debian trixie-updates InRelease
+[2026-05-27 17:02:41][VERBOSE][pve1][apt] Hit:2 https://deb.debian.org/debian trixie-updates InRelease
+[2026-05-27 17:02:41][VERBOSE][pve3][apt] Hit:3 https://deb.debian.org/debian-security trixie-security InRelease
+[2026-05-27 17:02:41][VERBOSE][pve1][apt] Hit:3 https://deb.debian.org/debian-security trixie-security InRelease
+[2026-05-27 17:02:41][VERBOSE][pve2][apt] Hit:3 https://deb.debian.org/debian-security trixie-security InRelease
+[2026-05-27 17:02:41][VERBOSE][pve3][apt] Hit:4 https://boomshankerx.github.io/proxmox-truenas-apt trixie InRelease
+[2026-05-27 17:02:41][VERBOSE][pve1][apt] Hit:4 https://boomshankerx.github.io/proxmox-truenas-apt trixie InRelease
+[2026-05-27 17:02:41][VERBOSE][pve2][apt] Hit:4 https://boomshankerx.github.io/proxmox-truenas-apt trixie InRelease
+[2026-05-27 17:02:43][VERBOSE][pve2][apt] Hit:5 http://download.proxmox.com/debian/ceph-squid trixie InRelease
+[2026-05-27 17:02:43][VERBOSE][pve3][apt] Hit:5 http://download.proxmox.com/debian/ceph-squid trixie InRelease
+[2026-05-27 17:02:43][VERBOSE][pve1][apt] Hit:5 http://download.proxmox.com/debian/ceph-squid trixie InRelease
+[2026-05-27 17:02:43][VERBOSE][pve2][apt] Hit:6 http://download.proxmox.com/debian/pve trixie InRelease
+[2026-05-27 17:02:43][VERBOSE][pve3][apt] Hit:6 http://download.proxmox.com/debian/pve trixie InRelease
+[2026-05-27 17:02:43][VERBOSE][pve1][apt] Hit:6 http://download.proxmox.com/debian/pve trixie InRelease
+[2026-05-27 17:02:43][VERBOSE][pve3][apt] Reading package lists...
+[2026-05-27 17:02:43][VERBOSE][pve2][apt] Reading package lists...
+[2026-05-27 17:02:43][VERBOSE][pve1][apt] Reading package lists...
+[2026-05-27 17:02:43][DEBUG  ][pve1] Running command 'DEBIAN_FRONTEND=noninteractive apt-get -qq -s upgrade'
+[2026-05-27 17:02:44][INFO   ][pve1] No updates available.
+[2026-05-27 17:02:44][VERBOSE][pve1] Removed from upgrade sequence.
+[2026-05-27 17:02:44][DEBUG  ][pve3] Running command 'DEBIAN_FRONTEND=noninteractive apt-get -qq -s upgrade'
+[2026-05-27 17:02:44][INFO   ][pve3] No updates available.
+[2026-05-27 17:02:44][VERBOSE][pve3] Removed from upgrade sequence.
+[2026-05-27 17:02:45][DEBUG  ][pve2] Running command 'DEBIAN_FRONTEND=noninteractive apt-get -qq -s upgrade'
+[2026-05-27 17:02:45][INFO   ][pve2] No updates available.
+[2026-05-27 17:02:45][VERBOSE][pve2] Removed from upgrade sequence.
+[2026-05-27 17:02:45][INFO   ] No nodes need updates. Exiting.
 ```
 
 ## Testing
