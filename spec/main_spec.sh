@@ -91,9 +91,9 @@ Describe 'main'
 
     It 'exits with error when the cluster_node is not proxmox' do
       install_main_happy_path_stubs
-      # is_node_proxmox logs "Node is not proxmox." itself via log_alert before
+      # is_node_proxmox logs "Node is not proxmox." itself via log_error before
       # returning non-zero; main then exits 1 with no additional log line.
-      is_node_proxmox() { log_alert "Node is not proxmox."; return 1; }
+      is_node_proxmox() { log_error "Node is not proxmox."; return 1; }
       When run main '--cluster-node' 'pve1'
       The status should be failure
       The error should include 'Node is not proxmox'
@@ -109,7 +109,7 @@ Describe 'main'
 
     It 'exits with error when nodes fail the parallel proxmox check' do
       install_main_happy_path_stubs
-      all_nodes_proxmox() { log_alert "Node is not proxmox"; return 1; }
+      all_nodes_proxmox() { log_error "Node is not proxmox"; return 1; }
       When run main '--cluster-node' 'pve1'
       The status should be failure
       The error should include 'Node is not proxmox'

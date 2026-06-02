@@ -129,14 +129,9 @@ log_color() {
   log_level 0 "\033[0;${color}m${*}\033[0m"
 }
 
-log_alert() {
+log_error() {
   # Log in red
   log_color 31 "$@"
-}
-
-log_error() {
-  # Alias to log_alert
-  log_alert "$@"
 }
 
 log_status() {
@@ -276,7 +271,7 @@ is_node_proxmox() {
   node_ssh "$node" 'hash pvesh' | log_pipe_level 4 "[$node]"
   local -i node_status=$?
   if [[ $node_status -ne 0 ]]; then
-    log_prefix "$node" log_alert "Node is not proxmox."
+    log_prefix "$node" log_error "Node is not proxmox."
   fi
   return $node_status
 }
@@ -628,7 +623,7 @@ node_reboot() {
     return 0
   fi
 
-  log_prefix "$node" log_alert "Rebooting in 5 seconds! Press CTRL-C to cancel..."
+  log_prefix "$node" log_error "Rebooting in 5 seconds! Press CTRL-C to cancel..."
   wait_sleep 5s
   log_prefix "$node" log_status "Rebooting, logging shutdown dmesg:"
   # Keepalive options bound the time we will wait for ssh to drop while the

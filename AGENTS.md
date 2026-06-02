@@ -243,8 +243,8 @@ For these cases, use separate `It` blocks instead of Parameters:
 # WRONG - Parameters with function names and spaces
 Describe 'color-coded logs' do
   Parameters
-    func_name | message
-    log_alert | test alert message
+    func_name   | message
+    log_warning | test warning message
   End
   It 'works' do
     When call "<func_name>" '<message>'   # FAILS: executes literal <func_name>
@@ -252,10 +252,10 @@ Describe 'color-coded logs' do
 End
 
 # RIGHT - separate It blocks for each variant
-Describe 'log_alert' do
+Describe 'log_warning' do
   It 'outputs the message with color codes' do
-    When call log_alert 'test alert message'
-    The error should include 'test alert message'
+    When call log_warning 'test warning message'
+    The error should include 'test warning message'
   End
 End
 

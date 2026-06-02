@@ -24,14 +24,6 @@ Describe 'Logging functions'
     End
   End
 
-  Describe 'log_alert' do
-    It 'outputs the message with color codes' do
-      When call log_alert 'test alert message'
-      The error should include 'test alert message'
-      The error should include $'\033'
-    End
-  End
-
   Describe 'log_error' do
     It 'outputs the message with color codes' do
       When call log_error 'test error message'
