@@ -244,6 +244,24 @@ Describe 'node_get_offline_count'
   End
 End
 
+Describe 'node_get_offline_nodes'
+  Include proxmox-upgrade-cluster.sh
+
+  It 'emits the names of offline nodes one per line' do
+    make_manager_status_pvesh pve1 online pve2 offline pve3 offline
+    When call node_get_offline_nodes 'pve1'
+    The line 1 of output should eq 'pve2'
+    The line 2 of output should eq 'pve3'
+    The lines of output should eq 2
+  End
+
+  It 'emits nothing when all nodes are online' do
+    make_manager_status_pvesh pve1 online pve2 online
+    When call node_get_offline_nodes 'pve1'
+    The output should eq ''
+  End
+End
+
 Describe 'node_get_mode'
   Include proxmox-upgrade-cluster.sh
 

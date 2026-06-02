@@ -142,11 +142,22 @@ log_progress_end() {
   fi
 }
 
+join_comma() {
+  # Join arguments into a comma-separated list for human-readable output.
+  # Node names contain no spaces, so a default-IFS join followed by a
+  # space-to-", " substitution yields "pve2, pve3".
+  local joined="$*"
+  echo "${joined// /, }"
+}
+
 wait_all_succeed() {
   local cmd=${1?}
   local -n args=${2?}
+  # Optional 3rd arg: name of an array to receive the args of failed jobs.
+  local failed_out_name=${3:-}
 
   local -A pids
+  local -A pid_args
 
   for arg in "${args[@]}"; do
     (
@@ -159,10 +170,12 @@ wait_all_succeed() {
     ) &
     local pid=$!
     pids["$pid"]="$cmd $arg"
+    pid_args["$pid"]="$arg"
     log_prefix $pid log_prefix "${FUNCNAME[0]}" log_level 4 "Started Job: \`$cmd $arg\`"
   done
 
   local -i failed_count=0
+  local -a failed_args=()
 
   for pid in "${!pids[@]}"; do
     wait "$pid"
@@ -172,9 +185,18 @@ wait_all_succeed() {
 
     if [[ $cmd_exit -gt 0 ]]; then
       ((failed_count += 1))
+      failed_args+=("${pid_args["$pid"]}")
       log_prefix "$pid" log_prefix "${FUNCNAME[0]}" log_level 1 "Job Error: \`$cmd\` exit: $cmd_exit"
     fi
   done
+
+  # Copy the failed args back to the caller's array if one was named. The
+  # result loop above runs in the caller's shell (only the jobs are
+  # subshells), so this nameref write persists.
+  if [[ -n "$failed_out_name" ]]; then
+    local -n _failed_out=$failed_out_name
+    _failed_out=("${failed_args[@]}")
+  fi
 
   return $failed_count
 }
@@ -228,7 +250,8 @@ is_node_up() {
 
 all_nodes_up() {
   local -n nodes=${1?}
-  wait_all_succeed is_node_up nodes
+  # Optional 2nd arg: name of an array to receive the nodes that are down.
+  wait_all_succeed is_node_up nodes "${2:-}"
 }
 
 get_cluster_nodes() {
@@ -253,7 +276,8 @@ is_node_proxmox() {
 
 all_nodes_proxmox() {
   local -n nodes=${1?}
-  wait_all_succeed is_node_proxmox nodes
+  # Optional 2nd arg: name of an array to receive the non-proxmox nodes.
+  wait_all_succeed is_node_proxmox nodes "${2:-}"
 }
 
 node_has_updates() {
@@ -363,6 +387,12 @@ node_get_offline_count() {
   node_pvesh "$node" 'cluster/ha/status/manager_status' | jq -rc '[.manager_status.node_status[] | select(. != "online")] | length'
 }
 
+node_get_offline_nodes() {
+  # Emit one offline node name per line so callers can read into an array.
+  local node=${1?}
+  node_pvesh "$node" 'cluster/ha/status/manager_status' | jq -r '.manager_status.node_status | to_entries[] | select(.value != "online") | .key'
+}
+
 node_get_mode() {
   local node=${1?}
   # The ssh target ($node) may be an IP, short name, or DNS name; the cluster's
@@ -455,7 +485,8 @@ node_not_running_task() {
 
 any_nodes_running_tasks() {
   local -n nodes=${1?}
-  wait_all_succeed node_not_running_task nodes
+  # Optional 2nd arg: name of an array to receive the nodes running tasks.
+  wait_all_succeed node_not_running_task nodes "${2:-}"
 }
 
 node_wait_all_tasks_completed() {
@@ -1011,24 +1042,28 @@ main() {
   log_success "Using '${cluster_nodes[*]}' as all nodes to check."
 
   log_status "Checking if any nodes are currently down..."
-  if ! all_nodes_up cluster_nodes; then
-    log_error "At least one node is currently down."
+  local -a down_nodes=()
+  if ! all_nodes_up cluster_nodes down_nodes; then
+    log_error "At least one node is currently down: $(join_comma "${down_nodes[@]}")."
     exit 1
   else
     log_success "All nodes are up."
   fi
 
   log_status "Checking if any nodes are not proxmox..."
-  if ! all_nodes_proxmox cluster_nodes; then
-    log_error "At least one node doesn't seem to be proxmox."
+  local -a non_proxmox_nodes=()
+  if ! all_nodes_proxmox cluster_nodes non_proxmox_nodes; then
+    log_error "At least one node doesn't seem to be proxmox: $(join_comma "${non_proxmox_nodes[@]}")."
     exit 1
   else
     log_success "All nodes are proxmox."
   fi
 
   log_status "Checking if any nodes are currently not online..."
-  if [[ $(node_get_offline_count "${cluster_nodes[0]}") -ne 0 ]]; then
-    log_error "At least one node is currently not online."
+  local -a offline_nodes=()
+  mapfile -t offline_nodes < <(node_get_offline_nodes "${cluster_nodes[0]}")
+  if [[ ${#offline_nodes[@]} -ne 0 ]]; then
+    log_error "At least one node is currently not online: $(join_comma "${offline_nodes[@]}")."
     exit 1
   else
     log_success "All nodes are online."
@@ -1038,8 +1073,9 @@ main() {
     log_warning "Not checking for running cluster tasks."
   else
     log_status "Checking if any nodes currently have tasks running..."
-    if ! any_nodes_running_tasks cluster_nodes; then
-      log_error "At least one node is currently running tasks."
+    local -a busy_nodes=()
+    if ! any_nodes_running_tasks cluster_nodes busy_nodes; then
+      log_error "At least one node is currently running tasks: $(join_comma "${busy_nodes[@]}")."
       exit 1
     else
       log_success "No tasks are running."

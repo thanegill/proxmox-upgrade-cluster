@@ -55,6 +55,39 @@ Describe 'wait_all_succeed'
     The error should include 'Job Error'
   End
 
+  Describe 'failed-args output array' do
+    # Arrays don't survive the When call subshell, so a driver populates the
+    # output array via wait_all_succeed's optional 3rd arg, then prints it
+    # one element per line as stdout for the matchers to assert against.
+    drive_failures() {
+      local cmd=${1?}
+      local -n in_arr=${2?}
+      local -a failed=()
+      wait_all_succeed "$cmd" in_arr failed
+      [[ ${#failed[@]} -gt 0 ]] && printf '%s\n' "${failed[@]}"
+      return 0
+    }
+
+    It 'collects the args of failed jobs into the named array' do
+      verbose=1
+      fail_b() { [[ "$1" == "b" ]] && return 1; return 0; }
+      arr=("a" "b" "c")
+
+      When call drive_failures fail_b arr
+      The line 1 of output should eq 'b'
+      The lines of output should eq 1
+      The error should include 'Job Error'
+    End
+
+    It 'leaves the array empty when all jobs succeed' do
+      all_ok() { return 0; }
+      arr=("a" "b")
+
+      When call drive_failures all_ok arr
+      The output should eq ''
+    End
+  End
+
   Describe 'verbose >= 4 includes PID in LOG_PREFIX' do
     # The child writes its $LOG_PREFIX to a temp file. The test driver then
     # echoes those contents as its stdout and applies normal stdout matchers.
