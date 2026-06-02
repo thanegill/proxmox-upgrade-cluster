@@ -579,6 +579,16 @@ Describe 'node_wait_with_progress'
   End
 End
 
+# filter_nodes writes the kept nodes into a caller-named array (no stdout), so
+# a When-call test can't read it across the subshell. This driver runs it into
+# a local array and prints that array one node per line for the matchers.
+filter_into() {
+  local -a kept=()
+  filter_nodes "$1" "$2" "$3" kept
+  [[ ${#kept[@]} -gt 0 ]] && printf '%s\n' "${kept[@]}"
+  return 0
+}
+
 Describe 'filter_nodes (upgradeable: node_has_updates)'
   Include proxmox-upgrade-cluster.sh
 
@@ -593,7 +603,7 @@ Describe 'filter_nodes (upgradeable: node_has_updates)'
     End
     cluster_nodes=("pve1" "pve2")
 
-    When call filter_nodes node_has_updates cluster_nodes "Removed from upgrade sequence."
+    When call filter_into node_has_updates cluster_nodes "Removed from upgrade sequence."
     The line 1 of output should eq 'pve1'
     The line 2 of output should eq 'pve2'
     The lines of output should eq 2
@@ -605,7 +615,7 @@ Describe 'filter_nodes (upgradeable: node_has_updates)'
     node_has_updates() { [[ "$1" == 'pve1' ]]; }
     cluster_nodes=("pve1" "pve2")
 
-    When call filter_nodes node_has_updates cluster_nodes "Removed from upgrade sequence."
+    When call filter_into node_has_updates cluster_nodes "Removed from upgrade sequence."
     The output should eq 'pve1'
     The lines of output should eq 1
     The error should include 'Removed from upgrade sequence'
@@ -617,7 +627,7 @@ Describe 'filter_nodes (upgradeable: node_has_updates)'
     End
     cluster_nodes=()
 
-    When call filter_nodes node_has_updates cluster_nodes "Removed from upgrade sequence."
+    When call filter_into node_has_updates cluster_nodes "Removed from upgrade sequence."
     The output should eq ''
   End
 
@@ -627,7 +637,7 @@ Describe 'filter_nodes (upgradeable: node_has_updates)'
     End
     cluster_nodes=("pve1" "pve2")
 
-    When call filter_nodes node_has_updates cluster_nodes "Removed from upgrade sequence."
+    When call filter_into node_has_updates cluster_nodes "Removed from upgrade sequence."
     The output should eq ''
   End
 End
@@ -650,7 +660,7 @@ Describe 'filter_nodes (reboot: node_needs_reboot)'
     }
     cluster_nodes=("pveA" "pveB" "pveC")
 
-    When call filter_nodes node_needs_reboot cluster_nodes "Removed from reboot sequence."
+    When call filter_into node_needs_reboot cluster_nodes "Removed from reboot sequence."
     The line 1 of output should eq 'pveB'
     The line 2 of output should eq 'pveC'
     The lines of output should eq 2
@@ -662,7 +672,7 @@ Describe 'filter_nodes (reboot: node_needs_reboot)'
     End
     cluster_nodes=("pve1" "pve2" "pve3")
 
-    When call filter_nodes node_needs_reboot cluster_nodes "Removed from reboot sequence."
+    When call filter_into node_needs_reboot cluster_nodes "Removed from reboot sequence."
     The line 1 of output should eq 'pve1'
     The line 2 of output should eq 'pve2'
     The line 3 of output should eq 'pve3'
@@ -675,7 +685,7 @@ Describe 'filter_nodes (reboot: node_needs_reboot)'
     End
     cluster_nodes=("pve1" "pve2")
 
-    When call filter_nodes node_needs_reboot cluster_nodes "Removed from reboot sequence."
+    When call filter_into node_needs_reboot cluster_nodes "Removed from reboot sequence."
     The output should eq ''
   End
 
@@ -685,7 +695,7 @@ Describe 'filter_nodes (reboot: node_needs_reboot)'
     End
     cluster_nodes=()
 
-    When call filter_nodes node_needs_reboot cluster_nodes "Removed from reboot sequence."
+    When call filter_into node_needs_reboot cluster_nodes "Removed from reboot sequence."
     The output should eq ''
   End
 
@@ -695,7 +705,7 @@ Describe 'filter_nodes (reboot: node_needs_reboot)'
     End
     cluster_nodes=("soloN")
 
-    When call filter_nodes node_needs_reboot cluster_nodes "Removed from reboot sequence."
+    When call filter_into node_needs_reboot cluster_nodes "Removed from reboot sequence."
     The output should eq 'soloN'
     The lines of output should eq 1
   End
@@ -705,7 +715,7 @@ Describe 'filter_nodes (reboot: node_needs_reboot)'
     node_needs_reboot() { [[ "$1" == 'pveSkip' ]] && return 1 || return 0; }
     cluster_nodes=("pveSkip" "pveKeep")
 
-    When call filter_nodes node_needs_reboot cluster_nodes "Removed from reboot sequence."
+    When call filter_into node_needs_reboot cluster_nodes "Removed from reboot sequence."
     The output should eq 'pveKeep'
     The error should include 'Removed from reboot sequence'
   End
@@ -742,9 +752,9 @@ End
 
 # The down / not-proxmox / running-tasks health checks no longer have
 # dedicated wrapper functions — main() captures failed nodes directly via
-# `wait_all_failed <predicate> cluster_nodes`. wait_all/wait_all_succeed/
-# wait_all_failed are covered in spec/wait_all_spec.sh, and the health-check
-# wiring is covered in spec/main_spec.sh.
+# `wait_all_failed <predicate> cluster_nodes`. wait_all and wait_all_failed
+# are covered in spec/wait_all_spec.sh, and the health-check wiring is covered
+# in spec/main_spec.sh.
 
 
 # main() tests live in spec/main_spec.sh, organized by behavior with a

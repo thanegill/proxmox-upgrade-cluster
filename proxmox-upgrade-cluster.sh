@@ -247,15 +247,6 @@ wait_all() {
   return $failed_count
 }
 
-wait_all_succeed() {
-  # Emit (one per line) the args whose command succeeded.
-  local -a _successful=()
-  wait_all "${1?}" "${2?}" "" _successful || true
-  if [[ ${#_successful[@]} -gt 0 ]]; then
-    printf '%s\n' "${_successful[@]}"
-  fi
-}
-
 wait_all_failed() {
   # Emit (one per line) the args whose command failed.
   local -a _failed=()
@@ -345,29 +336,29 @@ node_has_updates() {
   return 1
 }
 
-# Emit (one per line) the nodes for which `predicate` succeeds, logging the
-# rest as dropped from the sequence. Used by main() for the upgradeable and
-# reboot-needed filters; the predicate itself logs the per-node pass/fail.
+# Populate the array named by $4 (in input order) with the nodes for which
+# `predicate` succeeds, logging the rest as dropped from the sequence. Used by
+# main() for the upgradeable and reboot-needed filters; the predicate itself
+# logs the per-node pass/fail.
 filter_nodes() {
   local predicate=${1?}
   local nodes_name=${2?}
   local removed_msg=${3?}
+  local out_name=${4?}
   local -n _nodes=$nodes_name
 
-  local -a kept=()
-  mapfile -t kept < <(wait_all_succeed "$predicate" "$nodes_name")
+  # wait_all writes the kept (succeeded) nodes into the caller's array via its
+  # 4th arg. A failing predicate (no updates / no reboot needed) is the normal
+  # "drop this node" signal, so swallow wait_all's non-zero failed count.
+  wait_all "$predicate" "$nodes_name" "" "$out_name" || true
 
+  local -n _kept=$out_name
   local node
   for node in "${_nodes[@]}"; do
     # Node names contain no spaces, so this membership test is safe.
-    [[ " ${kept[*]} " == *" $node "* ]] ||
+    [[ " ${_kept[*]} " == *" $node "* ]] ||
       log_prefix "$node" log_level 1 "$removed_msg"
   done
-
-  # Guard the empty case — printf '%s\n' "${empty[@]}" would emit a blank line.
-  if [[ ${#kept[@]} -gt 0 ]]; then
-    printf '%s\n' "${kept[@]}"
-  fi
 }
 
 node_apt_update() {
@@ -1120,7 +1111,7 @@ main() {
   if [[ "$reboot_only" == true ]]; then
     log_warning "Reboot-only mode: skipping apt-update and dist-upgrade."
     log_status "Checking which nodes need a reboot..."
-    mapfile -t upgrade_nodes < <(filter_nodes node_needs_reboot cluster_nodes "Removed from reboot sequence.")
+    filter_nodes node_needs_reboot cluster_nodes "Removed from reboot sequence." upgrade_nodes
   else
     log_status "Checking for updates on all nodes..."
     wait_all node_apt_update cluster_nodes
@@ -1129,7 +1120,7 @@ main() {
       upgrade_nodes=("${cluster_nodes[@]}")
       log_warning "Forcing upgrade for all nodes, not just those that have updates available."
     else
-      mapfile -t upgrade_nodes < <(filter_nodes node_has_updates cluster_nodes "Removed from upgrade sequence.")
+      filter_nodes node_has_updates cluster_nodes "Removed from upgrade sequence." upgrade_nodes
     fi
   fi
 

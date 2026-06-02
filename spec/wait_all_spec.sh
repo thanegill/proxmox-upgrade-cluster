@@ -218,28 +218,6 @@ Describe 'wait_all'
   End
 End
 
-Describe 'wait_all_succeed'
-  Include proxmox-upgrade-cluster.sh
-
-  It 'emits the args whose command succeeded, in input order' do
-    fail_b() { [[ "$1" == "b" ]] && return 1; return 0; }
-    arr=("a" "b" "c")
-
-    When call wait_all_succeed fail_b arr
-    The line 1 of output should eq 'a'
-    The line 2 of output should eq 'c'
-    The lines of output should eq 2
-  End
-
-  It 'emits nothing when every command fails' do
-    all_fail() { return 1; }
-    arr=("a" "b")
-
-    When call wait_all_succeed all_fail arr
-    The output should eq ''
-  End
-End
-
 Describe 'wait_all_failed'
   Include proxmox-upgrade-cluster.sh
 
