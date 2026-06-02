@@ -98,31 +98,6 @@ log_prefix() {
   LOG_PREFIX+="[$prefix]" "$@"
 }
 
-log_info() {
-  # Alias for log_level 0
-  log_level 0 "$@"
-}
-
-log_verbose() {
-  # Alias for log_level 1
-  log_level 1 "$@"
-}
-
-log_debug() {
-  # Alias for log_level 2
-  log_level 2 "$@"
-}
-
-log_debug2() {
-  # Alias for log_level 3
-  log_level 3 "$@"
-}
-
-log_debug3() {
-  # Alias for log_level 4
-  log_level 4 "$@"
-}
-
 log_color() {
   local -i color=${1?}
   shift
@@ -184,7 +159,7 @@ wait_all_succeed() {
     ) &
     local pid=$!
     pids["$pid"]="$cmd $arg"
-    log_prefix $pid log_prefix "${FUNCNAME[0]}" log_debug3 "Started Job: \`$cmd $arg\`"
+    log_prefix $pid log_prefix "${FUNCNAME[0]}" log_level 4 "Started Job: \`$cmd $arg\`"
   done
 
   local -i failed_count=0
@@ -193,11 +168,11 @@ wait_all_succeed() {
     wait "$pid"
     local cmd_exit=$?
     local cmd="${pids["$pid"]}"
-    log_prefix "$pid" log_prefix "${FUNCNAME[0]}" log_debug3 "Finished Job: \`$cmd\` exit: $cmd_exit"
+    log_prefix "$pid" log_prefix "${FUNCNAME[0]}" log_level 4 "Finished Job: \`$cmd\` exit: $cmd_exit"
 
     if [[ $cmd_exit -gt 0 ]]; then
       ((failed_count += 1))
-      log_prefix "$pid" log_prefix "${FUNCNAME[0]}" log_verbose "Job Error: \`$cmd\` exit: $cmd_exit"
+      log_prefix "$pid" log_prefix "${FUNCNAME[0]}" log_level 1 "Job Error: \`$cmd\` exit: $cmd_exit"
     fi
   done
 
@@ -213,7 +188,7 @@ node_ssh() {
   shift
   local cmd=${1?}
   shift
-  log_prefix "$host" log_debug "Running command '$cmd'"
+  log_prefix "$host" log_level 2 "Running command '$cmd'"
 
   local_ssh "$host" "${ssh_options[@]}" "$@" "$cmd" 2> >(log_prefix "$host" log_pipe_level 3 "[stderr]")
 }
@@ -234,7 +209,7 @@ node_pvesh() {
   local node=${1?}
   local path=${2?}
   local args=${3:-}
-  log_prefix "$node" log_debug2 "JSON output:"
+  log_prefix "$node" log_level 3 "JSON output:"
   node_ssh "$node" "pvesh get $path $args --output-form=json" | tee >(jq | log_pipe_level 3 "[$node]")
 }
 
@@ -244,9 +219,9 @@ is_node_up() {
   node_ssh "$node" whoami "-oConnectTimeout=$timeout" | log_pipe_level 3 "[$node]"
   local -i node_status=$?
   if [[ $node_status -eq 0 ]]; then
-    log_prefix "$node" log_debug "Node is up."
+    log_prefix "$node" log_level 2 "Node is up."
   else
-    log_prefix "$node" log_debug "Node is down."
+    log_prefix "$node" log_level 2 "Node is down."
   fi
   return $node_status
 }
@@ -299,7 +274,7 @@ get_nodes_upgradeable() {
       nodes_with_updates+=("$node")
     else
       log_prefix "$node" log_success "No updates available."
-      log_prefix "$node" log_verbose "Removed from upgrade sequence."
+      log_prefix "$node" log_level 1 "Removed from upgrade sequence."
     fi
   done
   # Emit one node per line so callers can read into an array via mapfile -t.
@@ -320,7 +295,7 @@ get_nodes_needing_reboot() {
       nodes_to_reboot+=("$node")
     else
       log_prefix "$node" log_success "No reboot required."
-      log_prefix "$node" log_verbose "Removed from reboot sequence."
+      log_prefix "$node" log_level 1 "Removed from reboot sequence."
     fi
   done
   # Emit one node per line so callers can read into an array via mapfile -t.
@@ -347,7 +322,7 @@ node_get_running_count() {
   local -i count
   # shellcheck disable=SC2016 # $(hostname) is supposed to run in remote host.
   count="$(node_pvesh "$node" "nodes/\$(hostname)/$type" | jq -rc '[.[] | select(.status != "stopped")] | length')"
-  log_prefix "$node" log_debug "Running ${type^^} count: $count"
+  log_prefix "$node" log_level 2 "Running ${type^^} count: $count"
   echo "$count"
 }
 
@@ -359,7 +334,7 @@ node_get_running_guest_count() {
   qemu_count="$(node_get_running_count "$node" "qemu")"
   total=$((lxc_count + qemu_count))
 
-  log_prefix "$node" log_verbose "Number of guests running: $total"
+  log_prefix "$node" log_level 1 "Number of guests running: $total"
   echo "$total"
 }
 
@@ -432,7 +407,7 @@ node_wait_until_mode() {
   local mode
   mode=$(node_get_mode "$node")
   until [[ "$mode" == "$target_mode" ]]; do
-    log_prefix "$node" log_verbose "Current mode '$mode' target mode '$target_mode'."
+    log_prefix "$node" log_level 1 "Current mode '$mode' target mode '$target_mode'."
     log_progress 1s
     mode=$(node_get_mode "$node")
   done
@@ -470,9 +445,9 @@ node_not_running_task() {
   local node=${1?}
   local -i task_count
   task_count=$(node_number_of_running_tasks "$node")
-  log_prefix "${FUNCNAME[0]}" log_prefix "$node" log_debug "Task Count: $task_count"
+  log_prefix "${FUNCNAME[0]}" log_prefix "$node" log_level 2 "Task Count: $task_count"
   if ((task_count > 0)); then
-    log_prefix "$node" log_info "Running a task. Task Count: $task_count"
+    log_prefix "$node" log_level 0 "Running a task. Task Count: $task_count"
     return 1
   fi
   return 0
@@ -495,7 +470,7 @@ node_wait_all_tasks_completed() {
   local -i task_count
   task_count=$(node_number_of_running_tasks "$node")
   until [[ $task_count -eq 0 ]]; do
-    log_prefix "$node" log_verbose "Number of running cluster tasks: $task_count"
+    log_prefix "$node" log_level 1 "Number of running cluster tasks: $task_count"
     log_progress 5s
     task_count=$(node_number_of_running_tasks "$node")
   done
@@ -510,7 +485,7 @@ node_pre_flight_check() {
   local -i count
   count="$(node_get_offline_count "$node")"
   until [[ "$count" -eq 0 ]]; do
-    log_prefix "$node" log_verbose "At least one cluster node is currently offline. Waiting..."
+    log_prefix "$node" log_level 1 "At least one cluster node is currently offline. Waiting..."
     log_progress 1s
     count="$(node_get_offline_count "$node")"
   done
@@ -659,7 +634,7 @@ node_post_upgrade() {
     log_prefix "$node" log_success "Force reinstalling '${pkgs_reinstall[*]}'..."
     node_ssh_no_op "$node" "DEBIAN_FRONTEND=noninteractive apt-get reinstall ${pkgs_reinstall[*]}" | log_pipe_level 0 "[$node][apt]"
   else
-    log_prefix "$node" log_info "No packages to force reinstall."
+    log_prefix "$node" log_level 0 "No packages to force reinstall."
   fi
   log_prefix "$node" log_success "Removing old packages..."
   node_ssh_no_op "$node" "DEBIAN_FRONTEND=noninteractive apt-get autoremove -y && apt-get autoclean -y" | log_pipe_level 0 "[$node][apt]"

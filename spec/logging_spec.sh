@@ -1,29 +1,6 @@
 Describe 'Logging functions'
   Include proxmox-upgrade-cluster.sh
 
-  Describe 'log_info' do
-    It 'outputs the message' do
-      When call log_info 'test info message'
-      The error should include 'test info message'
-    End
-  End
-
-  Describe 'log_verbose' do
-    It 'outputs the message when verbose >= 1' do
-      verbose=1
-      When call log_verbose 'test verbose message'
-      The error should include 'test verbose message'
-    End
-  End
-
-  Describe 'log_debug' do
-    It 'outputs the message when verbose >= 2' do
-      verbose=2
-      When call log_debug 'test debug message'
-      The error should include 'test debug message'
-    End
-  End
-
   Describe 'log_error' do
     It 'outputs the message with color codes' do
       When call log_error 'test error message'
@@ -133,6 +110,32 @@ Describe 'Logging functions'
       The status should be failure
       The error should include 'parameter not set'
     End
+
+    It 'labels level 3 output as DEBUG2 when verbose >= 3' do
+      verbose=3
+      When call log_level 3 'debug2 message'
+      The error should include 'debug2 message'
+      The error should include '[DEBUG2'
+    End
+
+    It 'silences level 3 output when verbose < 3' do
+      verbose=2
+      When call log_level 3 'hidden debug2'
+      The output should eq ''
+    End
+
+    It 'labels level 4 output as DEBUG3 when verbose >= 4' do
+      verbose=4
+      When call log_level 4 'debug3 message'
+      The error should include 'debug3 message'
+      The error should include '[DEBUG3'
+    End
+
+    It 'silences level 4 output when verbose < 4' do
+      verbose=3
+      When call log_level 4 'hidden debug3'
+      The output should eq ''
+    End
   End
 
   Describe 'log_pipe_level' do
@@ -196,36 +199,6 @@ Describe 'Logging functions'
       The error should match pattern '*[[][0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9] [0-9][0-9]:[0-9][0-9]:[0-9][0-9].[0-9]*]*'
       The error should include 'msg'
       The error should not include 'invalid number'
-    End
-  End
-
-  Describe 'log_debug2' do
-    It 'outputs message when verbose >= 3' do
-      verbose=3
-      When call log_debug2 'debug2 message'
-      The error should include 'debug2 message'
-      The error should include '[DEBUG2'
-    End
-
-    It 'silences output when verbose < 3' do
-      verbose=2
-      When call log_debug2 'hidden debug2'
-      The output should eq ''
-    End
-  End
-
-  Describe 'log_debug3' do
-    It 'outputs message when verbose >= 4' do
-      verbose=4
-      When call log_debug3 'debug3 message'
-      The error should include 'debug3 message'
-      The error should include '[DEBUG3'
-    End
-
-    It 'silences output when verbose < 4' do
-      verbose=3
-      When call log_debug3 'hidden debug3'
-      The output should eq ''
     End
   End
 
