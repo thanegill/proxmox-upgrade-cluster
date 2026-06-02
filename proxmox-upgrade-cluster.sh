@@ -476,8 +476,9 @@ node_wait_until_service_running() {
 }
 
 node_reached_mode() {
-  # Polling predicate for node_wait_until_mode: 0 once in target mode,
-  # otherwise log the current/target mode and return non-zero (keep waiting).
+  # Polling predicate for the node_set_maintenance mode wait: 0 once in target
+  # mode, otherwise log the current/target mode and return non-zero (keep
+  # waiting).
   local node=${1?}
   local target_mode=${2?}
   local mode
@@ -485,16 +486,6 @@ node_reached_mode() {
   [[ "$mode" == "$target_mode" ]] && return 0
   log_prefix "$node" log_level 1 "Current mode '$mode' target mode '$target_mode'."
   return 1
-}
-
-node_wait_until_mode() {
-  local node=${1?}
-  local target_mode=${2?}
-
-  node_wait_with_progress "$node" 1s \
-    "Waiting until node enters $target_mode mode..." \
-    "Reached target mode '$target_mode'." \
-    node_reached_mode "$node" "$target_mode"
 }
 
 node_no_running_guests() {
@@ -608,7 +599,10 @@ node_set_maintenance() {
     return 0
   fi
 
-  node_wait_until_mode "$node" "$target_mode"
+  node_wait_with_progress "$node" 1s \
+    "Waiting until node enters $target_mode mode..." \
+    "Reached target mode '$target_mode'." \
+    node_reached_mode "$node" "$target_mode"
 }
 
 node_upgrade() {

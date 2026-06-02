@@ -15,24 +15,27 @@ Describe 'node_set_maintenance'
     use_maintenance_mode=true
     dry_run=false
     node_ssh_no_op() { echo 'maintenance set'; }
-    node_wait_until_mode() { echo 'in maintenance'; }
+    node_get_mode() { echo 'maintenance'; }  # already in target
+    wait_sleep() { :; }
 
     When call node_set_maintenance 'pve1' enable
     The status should be success
-    The output should include 'in maintenance'
     The error should include 'Enabling maintenance mode'
+    The error should include 'Waiting until node enters maintenance mode'
+    The error should include "Reached target mode 'maintenance'"
   End
 
-  It 'skips wait_until_mode when dry_run is true (enable)' do
+  It 'skips the mode wait when dry_run is true (enable)' do
     use_maintenance_mode=true
     dry_run=true
     node_ssh_no_op() { echo 'maintenance set'; }
-    called_wait=0
-    node_wait_until_mode() { called_wait=1; }
+    node_get_mode() { echo 'maintenance'; }  # if wrongly polled, completes fast
+    wait_sleep() { :; }
 
     When call node_set_maintenance 'pve1' enable
     The status should be success
     The error should include 'Enabling maintenance mode'
+    The error should not include 'Waiting until node enters'
   End
 
   It 'skips and warns when use_maintenance_mode is false (disable)' do
@@ -48,27 +51,29 @@ Describe 'node_set_maintenance'
     dry_run=false
     node_wait_until_service_running() { echo 'service running'; }
     node_ssh_no_op() { echo 'maintenance disabled'; }
-    node_wait_until_mode() { echo 'online'; }
+    node_get_mode() { echo 'online'; }  # already in target
+    wait_sleep() { :; }
 
     When call node_set_maintenance 'pve1' disable
     The status should be success
     The output should include 'service running'
-    The output should include 'online'
     The error should include 'Disabling maintenance mode'
+    The error should include "Reached target mode 'online'"
   End
 
-  It 'skips wait_until_mode when dry_run is true (disable)' do
+  It 'skips the mode wait when dry_run is true (disable)' do
     use_maintenance_mode=true
     dry_run=true
     node_wait_until_service_running() { echo 'service running'; }
     node_ssh_no_op() { echo 'maintenance disabled'; }
-    called_wait=0
-    node_wait_until_mode() { called_wait=1; }
+    node_get_mode() { echo 'online'; }  # if wrongly polled, completes fast
+    wait_sleep() { :; }
 
     When call node_set_maintenance 'pve1' disable
     The status should be success
     The output should include 'service running'
     The error should include 'Disabling maintenance mode'
+    The error should not include 'Waiting until node enters'
   End
 End
 

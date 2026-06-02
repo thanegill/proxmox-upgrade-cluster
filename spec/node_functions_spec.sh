@@ -686,66 +686,30 @@ Describe 'node_needs_reboot'
   End
 End
 
-Describe 'node_wait_until_mode'
+Describe 'node_reached_mode'
   Include proxmox-upgrade-cluster.sh
 
   It 'returns success when already in target mode' do
-    verbose=1
     node_get_mode() { echo 'online'; }
-    wait_sleep() { :; }
 
-    When call node_wait_until_mode 'pve1' 'online'
+    When call node_reached_mode 'pve1' 'online'
     The status should be success
-    The error should include 'Waiting until node enters online mode'
   End
 
-  It 'polls until mode changes to target' do
+  It 'logs current vs target and returns failure when not yet in target mode' do
     verbose=1
-    _mode_file=$(mktemp)
-    echo 'maintenance' > "$_mode_file"
+    node_get_mode() { echo 'maintenance'; }
 
-    node_get_mode() { cat "$_mode_file"; }
-
-    wait_sleep() {
-      :;
-      # Change mode from maintenance to online after first poll
-      local current
-      current=$(cat "$_mode_file")
-      [[ "$current" == "maintenance" ]] && echo 'online' > "$_mode_file"
-    }
-
-    When call node_wait_until_mode 'pve1' 'online'
-    The status should be success
-    The error should include 'Reached target mode'
-    rm -f "$_mode_file"
-  End
-
-  It 'logs current vs target mode when polling' do
-    verbose=2
-    _mode_file=$(mktemp)
-    echo 'maintenance' > "$_mode_file"
-
-    node_get_mode() { cat "$_mode_file"; }
-
-    wait_sleep() {
-      :;
-      local current
-      current=$(cat "$_mode_file")
-      [[ "$current" == "maintenance" ]] && echo 'online' > "$_mode_file"
-    }
-
-    When call node_wait_until_mode 'pve1' 'online'
-    The error should include 'Current mode'
-    rm -f "$_mode_file"
+    When call node_reached_mode 'pve1' 'online'
+    The status should be failure
+    The error should include "Current mode 'maintenance' target mode 'online'"
   End
 
   It 'does not leak $mode into the caller scope' do
-    verbose=0
     node_get_mode() { echo 'online'; }
-    wait_sleep() { :; }
     leak_check() {
       unset mode
-      node_wait_until_mode 'pve1' 'online' 2>/dev/null
+      node_reached_mode 'pve1' 'online' 2>/dev/null
       [[ -z "${mode+x}" ]] && echo 'no leak' || echo "leaked: $mode"
     }
 
