@@ -262,9 +262,8 @@ local_ssh() {
 
 node_ssh() {
   local host=${1?}
-  shift
-  local cmd=${1?}
-  shift
+  local cmd=${2?}
+  shift 2
   log_prefix "$host" log_level 2 "Running command '$cmd'"
 
   local_ssh "$host" "${ssh_options[@]}" "$@" "$cmd" 2> >(log_prefix "$host" log_pipe_level 3 "[stderr]")
@@ -272,9 +271,8 @@ node_ssh() {
 
 node_ssh_no_op() {
   local node=${1?}
-  shift
-  local cmd=${1?}
-  shift
+  local cmd=${2?}
+  shift 2
   if [[ "$dry_run" = true ]]; then
     log_prefix "NO-OP" log_prefix "$node" log_warning " Not running '$cmd'"
     return 0
