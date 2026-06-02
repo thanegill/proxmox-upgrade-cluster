@@ -485,16 +485,16 @@ Describe 'node_get_running_count' do
     The output should eq '0'
   End
 
-  It 'logs the LXC count uppercased at verbose>=1' do
-    verbose=1
+  It 'logs the LXC count uppercased at verbose>=2' do
+    verbose=2
     make_status_array_pvesh running running
     When call node_get_running_count 'pve1' 'lxc'
     The output should eq '2'
     The error should include 'Running LXC count: 2'
   End
 
-  It 'logs the QEMU count uppercased at verbose>=1' do
-    verbose=1
+  It 'logs the QEMU count uppercased at verbose>=2' do
+    verbose=2
     make_status_array_pvesh running
     When call node_get_running_count 'pve1' 'qemu'
     The output should eq '1'

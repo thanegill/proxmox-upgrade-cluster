@@ -197,7 +197,7 @@ wait_all_succeed() {
 
     if [[ $cmd_exit -gt 0 ]]; then
       ((failed_count += 1))
-      log_prefix "$pid" log_prefix "${FUNCNAME[0]}" log_error "Job Error: \`$cmd\` exit: $cmd_exit"
+      log_prefix "$pid" log_prefix "${FUNCNAME[0]}" log_verbose "Job Error: \`$cmd\` exit: $cmd_exit"
     fi
   done
 
@@ -347,7 +347,7 @@ node_get_running_count() {
   local -i count
   # shellcheck disable=SC2016 # $(hostname) is supposed to run in remote host.
   count="$(node_pvesh "$node" "nodes/\$(hostname)/$type" | jq -rc '[.[] | select(.status != "stopped")] | length')"
-  log_prefix "$node" log_verbose "Running ${type^^} count: $count"
+  log_prefix "$node" log_debug "Running ${type^^} count: $count"
   echo "$count"
 }
 

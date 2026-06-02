@@ -10,6 +10,7 @@ Describe 'wait_all_succeed'
   End
 
   It 'returns exit code 1 when one job fails' do
+    verbose=1
     fail_job() { [[ "$1" == "b" ]] && return 1; return 0; }
     fail_array=("a" "b" "c")
 
@@ -19,6 +20,7 @@ Describe 'wait_all_succeed'
   End
 
   It 'returns exit code equal to number of failed jobs' do
+    verbose=1
     always_fail() { return 1; }
     fail_array=("a" "b" "c")
 
@@ -44,6 +46,7 @@ Describe 'wait_all_succeed'
   End
 
   It 'returns exit code 1 for single failing element' do
+    verbose=1
     single_fail() { return 1; }
     single_array=("x")
 
