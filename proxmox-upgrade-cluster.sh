@@ -142,6 +142,24 @@ log_progress_end() {
   fi
 }
 
+node_wait_with_progress() {
+  # Poll until a predicate succeeds, showing progress dots. The remaining args
+  # ("$@" after the first four) are the predicate command: it returns 0 when
+  # done waiting and logs its own per-iteration detail while still waiting.
+  local node=${1?}
+  local interval=${2?}
+  local status_msg=${3?}
+  local success_msg=${4?}
+  shift 4
+
+  log_prefix "$node" log_status "$status_msg"
+  until "$@"; do
+    log_progress "$interval"
+  done
+  log_progress_end
+  log_prefix "$node" log_success "$success_msg"
+}
+
 health_check() {
   # Run a pre-flight health check: emit the status line, capture the failing
   # nodes produced by the command in "$@" (one node name per line), then
@@ -451,28 +469,37 @@ node_wait_until_service_running() {
     return 0
   fi
 
-  log_prefix "$node" log_status "Waiting until service '$service' is running..."
-  until node_service_running "$node" "$service"; do
-    log_progress 1s
-  done
-  log_progress_end
-  log_prefix "$node" log_success "Service '$service' started."
+  node_wait_with_progress "$node" 1s \
+    "Waiting until service '$service' is running..." \
+    "Service '$service' started." \
+    node_service_running "$node" "$service"
+}
+
+node_reached_mode() {
+  # Polling predicate for node_wait_until_mode: 0 once in target mode,
+  # otherwise log the current/target mode and return non-zero (keep waiting).
+  local node=${1?}
+  local target_mode=${2?}
+  local mode
+  mode=$(node_get_mode "$node")
+  [[ "$mode" == "$target_mode" ]] && return 0
+  log_prefix "$node" log_level 1 "Current mode '$mode' target mode '$target_mode'."
+  return 1
 }
 
 node_wait_until_mode() {
   local node=${1?}
   local target_mode=${2?}
 
-  log_prefix "$node" log_status "Waiting until node enters $target_mode mode..."
-  local mode
-  mode=$(node_get_mode "$node")
-  until [[ "$mode" == "$target_mode" ]]; do
-    log_prefix "$node" log_level 1 "Current mode '$mode' target mode '$target_mode'."
-    log_progress 1s
-    mode=$(node_get_mode "$node")
-  done
-  log_progress_end
-  log_prefix "$node" log_success "Reached target mode '$target_mode'."
+  node_wait_with_progress "$node" 1s \
+    "Waiting until node enters $target_mode mode..." \
+    "Reached target mode '$target_mode'." \
+    node_reached_mode "$node" "$target_mode"
+}
+
+node_no_running_guests() {
+  local node=${1?}
+  [[ "$(node_get_running_guest_count "$node")" -eq 0 ]]
 }
 
 node_wait_until_no_running_guests() {
@@ -483,16 +510,10 @@ node_wait_until_no_running_guests() {
     return 0
   fi
 
-  log_prefix "$node" log_status "Waiting until all guests are migrated..."
-
-  local -i count
-  count="$(node_get_running_guest_count "$node")"
-  until [[ $count -eq 0 ]]; do
-    log_progress 5s
-    count="$(node_get_running_guest_count "$node")"
-  done
-  log_progress_end
-  log_prefix "$node" log_success "Reached zero running guests."
+  node_wait_with_progress "$node" 5s \
+    "Waiting until all guests are migrated..." \
+    "Reached zero running guests." \
+    node_no_running_guests "$node"
 }
 
 node_number_of_running_tasks() {
@@ -521,31 +542,41 @@ node_wait_all_tasks_completed() {
     return 0
   fi
 
-  log_prefix "$node" log_status "Waiting until all cluster tasks have completed..."
+  node_wait_with_progress "$node" 5s \
+    "Waiting until all cluster tasks have completed..." \
+    "Cluster reached zero running tasks." \
+    node_no_running_tasks "$node"
+}
+
+node_no_running_tasks() {
+  # Polling predicate for node_wait_all_tasks_completed: 0 once no tasks are
+  # running, otherwise log the count and return non-zero (keep waiting).
+  local node=${1?}
   local -i task_count
   task_count=$(node_number_of_running_tasks "$node")
-  until [[ $task_count -eq 0 ]]; do
-    log_prefix "$node" log_level 1 "Number of running cluster tasks: $task_count"
-    log_progress 5s
-    task_count=$(node_number_of_running_tasks "$node")
-  done
-  log_progress_end
-  log_prefix "$node" log_success "Cluster reached zero running tasks."
+  [[ $task_count -eq 0 ]] && return 0
+  log_prefix "$node" log_level 1 "Number of running cluster tasks: $task_count"
+  return 1
 }
 
 node_pre_flight_check() {
   local node=${1?}
 
-  log_prefix "$node" log_status "Checking that no cluster nodes are currently offline..."
+  node_wait_with_progress "$node" 1s \
+    "Checking that no cluster nodes are currently offline..." \
+    "All cluster nodes are online." \
+    node_cluster_all_online "$node"
+}
+
+node_cluster_all_online() {
+  # Polling predicate for node_pre_flight_check: 0 once no cluster node is
+  # offline, otherwise log a waiting notice and return non-zero (keep waiting).
+  local node=${1?}
   local -i count
   count="$(node_get_offline_count "$node")"
-  until [[ "$count" -eq 0 ]]; do
-    log_prefix "$node" log_level 1 "At least one cluster node is currently offline. Waiting..."
-    log_progress 1s
-    count="$(node_get_offline_count "$node")"
-  done
-  log_progress_end
-  log_prefix "$node" log_success "All cluster nodes are online."
+  [[ $count -eq 0 ]] && return 0
+  log_prefix "$node" log_level 1 "At least one cluster node is currently offline. Waiting..."
+  return 1
 }
 
 node_set_maintenance() {

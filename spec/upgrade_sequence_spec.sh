@@ -519,6 +519,37 @@ Describe 'node_pre_flight_check'
   End
 End
 
+Describe 'node_wait_with_progress'
+  Include proxmox-upgrade-cluster.sh
+
+  It 'logs status + success and does not loop when the predicate is already done' do
+    verbose=1
+    already_done() { return 0; }
+    wait_sleep() { echo 'SLEPT' >&2; }  # sentinel: must not be called
+
+    When call node_wait_with_progress 'pve1' 1s 'Waiting for thing...' 'Thing ready.' already_done
+    The status should be success
+    The error should include 'Waiting for thing...'
+    The error should include 'Thing ready.'
+    The error should not include 'SLEPT'
+  End
+
+  It 'polls with progress until the predicate succeeds' do
+    verbose=1
+    _counter=$(mktemp)
+    echo 0 > "$_counter"
+    # Done once the counter reaches 2; wait_sleep advances it each iteration.
+    counter_reaches_two() { [[ "$(cat "$_counter")" -ge 2 ]]; }
+    wait_sleep() { echo $(($(cat "$_counter") + 1)) > "$_counter"; }
+
+    When call node_wait_with_progress 'pve1' 1s 'Waiting...' 'Done.' counter_reaches_two
+    The status should be success
+    The error should include 'Done.'
+    The contents of file "$_counter" should eq '2'
+    rm -f "$_counter"
+  End
+End
+
 Describe 'get_nodes_upgradeable'
   Include proxmox-upgrade-cluster.sh
 
