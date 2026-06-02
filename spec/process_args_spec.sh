@@ -339,8 +339,8 @@ Describe 'process_args error cases'
     verbose=1
     When run process_args
     The status should be failure
-    The output should include 'NAME'
     The error should include 'No arguments passed'
+    The error should include 'See --help for usage'
   End
 
   It 'exits with error when unknown option provided' do

@@ -883,6 +883,12 @@ EXAMPLE
 EOF
 }
 
+error_exit_usage() {
+  log_error "ERROR: $1"
+  log_error "See --help for usage."
+  exit 1
+}
+
 error_on_no_arg() {
   # allow_dash defaults to false: by default, reject values that look like
   # another flag (e.g. `--node --dry-run`). Pass `true` for flags whose values
@@ -891,22 +897,16 @@ error_on_no_arg() {
   local value=${2:-}
   local allow_dash=${3:-false}
   if [[ -z $value ]]; then
-    log_error "ERROR: No arg passed for '$arg'."
-    log_error "See --help for usage."
-    exit 1
+    error_exit_usage "No arg passed for '$arg'."
   fi
   if [[ $allow_dash != true && $value == -* ]]; then
-    log_error "ERROR: '$arg' requires a value, got flag '$value'."
-    log_error "See --help for usage."
-    exit 1
+    error_exit_usage "'$arg' requires a value, got flag '$value'."
   fi
 }
 
 process_args() {
   if [[ $# -eq 0 ]]; then
-    log_error "No arguments passed."
-    usage
-    exit 1
+    error_exit_usage "No arguments passed."
   fi
 
   while [[ $# -ne 0 ]]; do
@@ -1002,38 +1002,26 @@ process_args() {
   [[ "$ssh_key_auth_only" == true ]] && ssh_options+=(-o "PasswordAuthentication=no")
 
   if [[ -z ${cluster_node:-} && ${#cluster_nodes[@]} -eq 0 ]]; then
-    log_error "ERROR: One of --cluster-node, or --nodes must be used."
-    log_error "See --help for usage."
-    exit 1
+    error_exit_usage "One of --cluster-node, or --nodes must be used."
   fi
 
   if [[ -n ${cluster_node:-} && ${#cluster_nodes[@]} -ne 0 ]]; then
-    log_error "ERROR: Only one of --cluster-node, or --nodes can be used."
-    log_error "See --help for usage."
-    exit 1
+    error_exit_usage "Only one of --cluster-node, or --nodes can be used."
   fi
 
   if [[ "$force_reboot" == true && "$skip_reboot" == true ]]; then
-    log_error "ERROR: --force-reboot and --skip-reboot cannot be used together."
-    log_error "See --help for usage."
-    exit 1
+    error_exit_usage "--force-reboot and --skip-reboot cannot be used together."
   fi
 
   if [[ "$reboot_only" == true ]]; then
     if [[ "$force_upgrade" == true ]]; then
-      log_error "ERROR: --reboot-only and --force-upgrade cannot be used together."
-      log_error "See --help for usage."
-      exit 1
+      error_exit_usage "--reboot-only and --force-upgrade cannot be used together."
     fi
     if [[ "$skip_reboot" == true ]]; then
-      log_error "ERROR: --reboot-only and --skip-reboot cannot be used together."
-      log_error "See --help for usage."
-      exit 1
+      error_exit_usage "--reboot-only and --skip-reboot cannot be used together."
     fi
     if [[ "$force_reboot" == true ]]; then
-      log_error "ERROR: --reboot-only and --force-reboot cannot be used together."
-      log_error "See --help for usage."
-      exit 1
+      error_exit_usage "--reboot-only and --force-reboot cannot be used together."
     fi
   fi
 }
