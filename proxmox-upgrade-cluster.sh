@@ -346,8 +346,8 @@ node_has_updates() {
 }
 
 # Emit (one per line) the nodes for which `predicate` succeeds, logging the
-# rest as dropped from the sequence. Shared by get_nodes_upgradeable and
-# get_nodes_needing_reboot; the predicate itself logs the per-node pass/fail.
+# rest as dropped from the sequence. Used by main() for the upgradeable and
+# reboot-needed filters; the predicate itself logs the per-node pass/fail.
 filter_nodes() {
   local predicate=${1?}
   local nodes_name=${2?}
@@ -370,21 +370,9 @@ filter_nodes() {
   fi
 }
 
-get_nodes_upgradeable() {
-  filter_nodes node_has_updates "${1?}" "Removed from upgrade sequence."
-}
-
-get_nodes_needing_reboot() {
-  filter_nodes node_needs_reboot "${1?}" "Removed from reboot sequence."
-}
-
 node_apt_update() {
   local node=${1?}
   node_ssh "$node" 'DEBIAN_FRONTEND=noninteractive apt-get update' | log_pipe_level 1 "[$node][apt]"
-}
-
-apt_update_nodes() {
-  wait_all node_apt_update "${1?}"
 }
 
 node_get_running_count() {
@@ -551,18 +539,10 @@ node_no_running_tasks() {
   return 1
 }
 
-node_pre_flight_check() {
-  local node=${1?}
-
-  node_wait_with_progress "$node" 1s \
-    "Checking that no cluster nodes are currently offline..." \
-    "All cluster nodes are online." \
-    node_cluster_all_online "$node"
-}
-
 node_cluster_all_online() {
-  # Polling predicate for node_pre_flight_check: 0 once no cluster node is
-  # offline, otherwise log a waiting notice and return non-zero (keep waiting).
+  # Polling predicate for the run_update_sequence pre-flight wait: 0 once no
+  # cluster node is offline, otherwise log a waiting notice and return non-zero
+  # (keep waiting).
   local node=${1?}
   local -i count
   count="$(node_get_offline_count "$node")"
@@ -766,7 +746,10 @@ node_run_update_sequence() {
   log_prefix "$node" log_success "Starting upgrade."
 
   # Pre-flight: verify cluster is healthy before touching anything.
-  node_pre_flight_check "$node"
+  node_wait_with_progress "$node" 1s \
+    "Checking that no cluster nodes are currently offline..." \
+    "All cluster nodes are online." \
+    node_cluster_all_online "$node"
 
   # Enter maintenance and wait for HA to migrate guests onto peers.
   [[ "$use_maintenance_mode" == true ]] && in_maintenance=true
@@ -1137,16 +1120,16 @@ main() {
   if [[ "$reboot_only" == true ]]; then
     log_warning "Reboot-only mode: skipping apt-update and dist-upgrade."
     log_status "Checking which nodes need a reboot..."
-    mapfile -t upgrade_nodes < <(get_nodes_needing_reboot cluster_nodes)
+    mapfile -t upgrade_nodes < <(filter_nodes node_needs_reboot cluster_nodes "Removed from reboot sequence.")
   else
     log_status "Checking for updates on all nodes..."
-    apt_update_nodes cluster_nodes
+    wait_all node_apt_update cluster_nodes
 
     if [[ "$force_upgrade" == true ]]; then
       upgrade_nodes=("${cluster_nodes[@]}")
       log_warning "Forcing upgrade for all nodes, not just those that have updates available."
     else
-      mapfile -t upgrade_nodes < <(get_nodes_upgradeable cluster_nodes)
+      mapfile -t upgrade_nodes < <(filter_nodes node_has_updates cluster_nodes "Removed from upgrade sequence.")
     fi
   fi
 

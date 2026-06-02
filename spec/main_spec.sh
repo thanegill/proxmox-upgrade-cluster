@@ -14,8 +14,8 @@ install_main_happy_path_stubs() {
   # wait_all_failed; emitting nothing means "no failed nodes".
   wait_all_failed() { :; }
   node_get_offline_nodes() { :; }
-  apt_update_nodes() { :; }
-  get_nodes_upgradeable() { :; }
+  node_apt_update() { :; }
+  filter_nodes() { :; }
   node_run_update_sequence() { echo "UPGRADE: $1"; }
   get_cluster_nodes() { echo 'pve1'; }
 }
@@ -142,7 +142,8 @@ Describe 'main'
     End
 
     It 'exits 0 when no nodes have updates and force_upgrade is false' do
-      # get_nodes_upgradeable returns empty by default in the happy-path stubs.
+      # filter_nodes is stubbed to no-op in the happy path, so the upgradeable
+      # filter emits nothing and upgrade_nodes stays empty.
       install_main_happy_path_stubs
       When run main '--cluster-node' 'pve1'
       The status should be success
@@ -191,20 +192,19 @@ Describe 'main'
       get_cluster_nodes() { printf '%s\n' pveA pveB pveC; }
     }
 
-    It 'skips apt_update_nodes when --reboot-only is set' do
+    It 'skips the apt update when --reboot-only is set' do
       pass_health_checks_reboot_only
-      apt_update_nodes() { echo 'apt_update_nodes-called' >&2; }
+      node_apt_update() { echo 'apt-update-called' >&2; }
       node_needs_reboot() { return 1; }   # nobody needs reboot → upgrade_nodes empty → exit 0
 
       When run main '--cluster-node' 'pve1' '--reboot-only'
       The status should be success
       The error should include 'Reboot-only mode'
-      The error should not include 'apt_update_nodes-called'
+      The error should not include 'apt-update-called'
     End
 
-    It 'populates upgrade_nodes from get_nodes_needing_reboot' do
+    It 'populates upgrade_nodes from the reboot filter' do
       pass_health_checks_reboot_only
-      apt_update_nodes() { :; }
       node_needs_reboot() {
         case "$1" in
           pveA) return 0 ;;
@@ -225,7 +225,6 @@ Describe 'main'
 
     It 'exits 0 when no node needs a reboot' do
       pass_health_checks_reboot_only
-      apt_update_nodes() { :; }
       node_needs_reboot() { return 1; }
 
       When run main '--cluster-node' 'pve1' '--reboot-only'
@@ -243,7 +242,7 @@ Describe 'main'
       is_node_proxmox() { return 0; }
       wait_all_failed() { :; }
       node_get_offline_nodes() { :; }
-      apt_update_nodes() { :; }
+      node_apt_update() { :; }
       node_run_update_sequence() { echo "RUN: $1"; }
     }
 

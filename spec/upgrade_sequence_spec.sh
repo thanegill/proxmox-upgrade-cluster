@@ -283,7 +283,9 @@ Describe 'node_run_update_sequence'
   # the canonical view of the lifecycle. Each It overrides whichever
   # stub(s) it wants to fail or trace. Mirrors install_main_happy_path_stubs.
   install_update_sequence_happy_stubs() {
-    node_pre_flight_check()             { :; }
+    # The inlined pre-flight is the only node_wait_with_progress call here
+    # (node_set_maintenance and the wait helpers are stubbed below).
+    node_wait_with_progress()           { :; }
     node_set_maintenance()              { :; }
     node_wait_all_tasks_completed()     { :; }
     node_wait_until_no_running_guests() { :; }
@@ -307,7 +309,8 @@ Describe 'node_run_update_sequence'
     # post → exit. Use a single shared invocation log so we can assert
     # the relative ordering.
     invocations="$(mktemp)"
-    node_pre_flight_check()             { echo 'pre_flight' >> "$invocations"; }
+    # The inlined pre-flight is the only node_wait_with_progress call here.
+    node_wait_with_progress()           { echo 'pre_flight' >> "$invocations"; }
     node_set_maintenance()              { echo "maintenance:$2" >> "$invocations"; }
     node_wait_all_tasks_completed()     { :; }
     node_wait_until_no_running_guests() { :; }
@@ -510,14 +513,35 @@ Describe 'node_wait_all_tasks_completed'
   End
 End
 
-Describe 'node_pre_flight_check'
+Describe 'node_cluster_all_online'
   Include proxmox-upgrade-cluster.sh
 
-  It 'returns success when no offline nodes' do
+  It 'returns success when no cluster node is offline' do
     node_get_offline_count() { echo '0'; }
-    wait_sleep() { return 0; }
 
-    When call node_pre_flight_check 'pve1'
+    When call node_cluster_all_online 'pve1'
+    The status should be success
+  End
+
+  It 'logs a waiting notice and returns failure when a node is offline' do
+    verbose=1
+    node_get_offline_count() { echo '1'; }
+
+    When call node_cluster_all_online 'pve1'
+    The status should be failure
+    The error should include 'At least one cluster node is currently offline'
+  End
+
+  # The pre-flight status/success wording lives at the run_update_sequence call
+  # site; this exercises that inlined construct end to end.
+  It 'pre-flight wait logs its status and success lines once the cluster is online' do
+    node_get_offline_count() { echo '0'; }
+    wait_sleep() { :; }
+
+    When call node_wait_with_progress 'pve1' 1s \
+      "Checking that no cluster nodes are currently offline..." \
+      "All cluster nodes are online." \
+      node_cluster_all_online 'pve1'
     The status should be success
     The error should include "Checking that no cluster nodes are currently offline"
     The error should include "All cluster nodes are online"
@@ -555,7 +579,7 @@ Describe 'node_wait_with_progress'
   End
 End
 
-Describe 'get_nodes_upgradeable'
+Describe 'filter_nodes (upgradeable: node_has_updates)'
   Include proxmox-upgrade-cluster.sh
 
   # node_has_updates is stubbed here, so its own "Updates available." /
@@ -569,7 +593,7 @@ Describe 'get_nodes_upgradeable'
     End
     cluster_nodes=("pve1" "pve2")
 
-    When call get_nodes_upgradeable cluster_nodes
+    When call filter_nodes node_has_updates cluster_nodes "Removed from upgrade sequence."
     The line 1 of output should eq 'pve1'
     The line 2 of output should eq 'pve2'
     The lines of output should eq 2
@@ -581,7 +605,7 @@ Describe 'get_nodes_upgradeable'
     node_has_updates() { [[ "$1" == 'pve1' ]]; }
     cluster_nodes=("pve1" "pve2")
 
-    When call get_nodes_upgradeable cluster_nodes
+    When call filter_nodes node_has_updates cluster_nodes "Removed from upgrade sequence."
     The output should eq 'pve1'
     The lines of output should eq 1
     The error should include 'Removed from upgrade sequence'
@@ -593,7 +617,7 @@ Describe 'get_nodes_upgradeable'
     End
     cluster_nodes=()
 
-    When call get_nodes_upgradeable cluster_nodes
+    When call filter_nodes node_has_updates cluster_nodes "Removed from upgrade sequence."
     The output should eq ''
   End
 
@@ -603,12 +627,12 @@ Describe 'get_nodes_upgradeable'
     End
     cluster_nodes=("pve1" "pve2")
 
-    When call get_nodes_upgradeable cluster_nodes
+    When call filter_nodes node_has_updates cluster_nodes "Removed from upgrade sequence."
     The output should eq ''
   End
 End
 
-Describe 'get_nodes_needing_reboot'
+Describe 'filter_nodes (reboot: node_needs_reboot)'
   Include proxmox-upgrade-cluster.sh
 
   # node_needs_reboot is stubbed here, so its own "Reboot required." /
@@ -626,7 +650,7 @@ Describe 'get_nodes_needing_reboot'
     }
     cluster_nodes=("pveA" "pveB" "pveC")
 
-    When call get_nodes_needing_reboot cluster_nodes
+    When call filter_nodes node_needs_reboot cluster_nodes "Removed from reboot sequence."
     The line 1 of output should eq 'pveB'
     The line 2 of output should eq 'pveC'
     The lines of output should eq 2
@@ -638,7 +662,7 @@ Describe 'get_nodes_needing_reboot'
     End
     cluster_nodes=("pve1" "pve2" "pve3")
 
-    When call get_nodes_needing_reboot cluster_nodes
+    When call filter_nodes node_needs_reboot cluster_nodes "Removed from reboot sequence."
     The line 1 of output should eq 'pve1'
     The line 2 of output should eq 'pve2'
     The line 3 of output should eq 'pve3'
@@ -651,7 +675,7 @@ Describe 'get_nodes_needing_reboot'
     End
     cluster_nodes=("pve1" "pve2")
 
-    When call get_nodes_needing_reboot cluster_nodes
+    When call filter_nodes node_needs_reboot cluster_nodes "Removed from reboot sequence."
     The output should eq ''
   End
 
@@ -661,7 +685,7 @@ Describe 'get_nodes_needing_reboot'
     End
     cluster_nodes=()
 
-    When call get_nodes_needing_reboot cluster_nodes
+    When call filter_nodes node_needs_reboot cluster_nodes "Removed from reboot sequence."
     The output should eq ''
   End
 
@@ -671,7 +695,7 @@ Describe 'get_nodes_needing_reboot'
     End
     cluster_nodes=("soloN")
 
-    When call get_nodes_needing_reboot cluster_nodes
+    When call filter_nodes node_needs_reboot cluster_nodes "Removed from reboot sequence."
     The output should eq 'soloN'
     The lines of output should eq 1
   End
@@ -681,7 +705,7 @@ Describe 'get_nodes_needing_reboot'
     node_needs_reboot() { [[ "$1" == 'pveSkip' ]] && return 1 || return 0; }
     cluster_nodes=("pveSkip" "pveKeep")
 
-    When call get_nodes_needing_reboot cluster_nodes
+    When call filter_nodes node_needs_reboot cluster_nodes "Removed from reboot sequence."
     The output should eq 'pveKeep'
     The error should include 'Removed from reboot sequence'
   End
@@ -701,14 +725,14 @@ record_invocations() {
   eval "$1() { echo \"\$1\" >> \"$invocations\"; return 0; }"
 }
 
-Describe 'apt_update_nodes'
+Describe 'wait_all node_apt_update (apt update fan-out)'
   Include proxmox-upgrade-cluster.sh
 
   It 'calls node_apt_update for each node' do
     record_invocations node_apt_update
     cluster_nodes=("pve1" "pve2")
 
-    When call apt_update_nodes cluster_nodes
+    When call wait_all node_apt_update cluster_nodes
     The status should be success
     The contents of file "$invocations" should include 'pve1'
     The contents of file "$invocations" should include 'pve2'

@@ -824,8 +824,8 @@ Describe 'node_ssh'
   End
 End
 
-# node_pre_upgrade was deleted in favour of inlining its three steps
-# (node_pre_flight_check, node_wait_all_tasks_completed,
+# node_pre_upgrade was deleted in favour of inlining its three steps (the
+# offline pre-flight wait, node_wait_all_tasks_completed, and
 # node_wait_until_no_running_guests) into node_run_update_sequence.
 # Each sub-step still has its own Describe block (see this file and
 # spec/upgrade_sequence_spec.sh).
