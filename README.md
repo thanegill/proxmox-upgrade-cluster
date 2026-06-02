@@ -18,6 +18,10 @@ nodes.
 * Reboot nodes only when needed, or can optionally force a reboot (`--force-reboot`).
 * Optionally force package reinstallation after upgrade (`--pkg-reinstall PACKAGE`).
 * No-op mode (`--dry-run`).
+* Reuse a single SSH connection per host via connection multiplexing
+  (`ControlMaster`/`ControlPath`/`ControlPersist`), so the many per-node commands
+  avoid a fresh TCP and auth handshake each time (disable with
+  `--no-ssh-multiplexing`).
 * Multiple levels of verbosity (`-v`, `-vv`, `-vvv`).
 
 ## Requirements
@@ -63,8 +67,12 @@ OPTIONS
 
     --ssh-allow-password-auth
         Allow ssh password auth. Default is to force SSH key auth with
-        'PasswordAuthentication=no'. Strongly recommended against — you may
-        have to enter your password hundreds of times.
+        'PasswordAuthentication=no'.
+
+    --no-ssh-multiplexing
+        Disable SSH connection multiplexing. By default a single master
+        connection per host is reused (ControlMaster/ControlPath/ControlPersist)
+        so the many per-node commands avoid a fresh TCP+auth handshake each time.
 
     --cluster-node-use-ip
         When using '--cluster-node', use the IP address instead of the node name.

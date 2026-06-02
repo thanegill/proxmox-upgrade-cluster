@@ -34,6 +34,7 @@ Describe 'proxmox-upgrade-cluster.sh'
     # documented limitations in CLAUDE.md.
     Parameters
       ssh_key_auth_only        true
+      ssh_multiplexing         true
       cluster_node_use_ip      false
       force_upgrade            false
       force_reboot             false

@@ -171,6 +171,7 @@ Describe 'process_args boolean flags'
   # variables_spec.sh — only the "flag flips variable" direction lives here.
   Parameters
     --ssh-allow-password-auth   ssh_key_auth_only        false
+    --no-ssh-multiplexing       ssh_multiplexing         false
     --cluster-node-use-ip       cluster_node_use_ip      true
     --dry-run                   dry_run                  true
     --force-upgrade             force_upgrade            true
@@ -402,6 +403,22 @@ Describe 'process_args ssh_options setup'
     When call capture_array ssh_options '--cluster-node' 'pve1' '--ssh-opt' '-o StrictHostKeyChecking=no' '--ssh-opt' '-o IdentityFile=/key'
     The output should include '[-o StrictHostKeyChecking=no]'
     The output should include '[-o IdentityFile=/key]'
+  End
+
+  It 'enables SSH connection multiplexing by default' do
+    When call capture_array ssh_options '--cluster-node' 'pve1'
+    The output should include '[ControlMaster=auto]'
+    The output should include '[ControlPath=~/.ssh/control-%C]'
+    The output should include '[ControlPersist=60]'
+    The output should include '[ServerAliveInterval=5]'
+    The output should include '[ServerAliveCountMax=2]'
+  End
+
+  It 'omits the multiplexing options when --no-ssh-multiplexing is set' do
+    When call capture_array ssh_options '--cluster-node' 'pve1' '--no-ssh-multiplexing'
+    The output should not include '[ControlMaster=auto]'
+    The output should not include '[ControlPath=~/.ssh/control-%C]'
+    The output should not include '[ServerAliveInterval=5]'
   End
 End
 

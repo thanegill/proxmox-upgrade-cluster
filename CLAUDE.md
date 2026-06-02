@@ -214,6 +214,7 @@ inputs and scalar expected values**:
 Describe 'boolean flag defaults' do
   Parameters
     ssh_key_auth_only        true
+    ssh_multiplexing         true
     dry_run                  false
     use_maintenance_mode     true
     preserve_discovery_order false
@@ -412,7 +413,7 @@ new inline mocks:
 | `install_main_happy_path_stubs` | `main_spec.sh` | All-success stubs for `main()`'s health-check + apt-update + upgrade flow. Each test overrides one stub to drive the branch under test. |
 | `install_reboot_stubs` | `upgrade_sequence_spec.sh` | All-success stubs + default scalars for `node_reboot` tests. |
 | `install_update_sequence_happy_stubs` | `upgrade_sequence_spec.sh` | No-op stubs for the four upgrade stages (`node_pre_upgrade`, `node_upgrade`, `node_reboot`, `node_post_upgrade`). |
-| `record_invocations <fn>` | `upgrade_sequence_spec.sh` | Install a stub that appends `$1` to a tempfile (`$invocations`); use to verify per-node calls under `wait_all_succeed` where subshell-internal array mutations would otherwise be lost. |
+| `record_invocations <fn>` | `upgrade_sequence_spec.sh` | Install a stub that appends `$1` to a tempfile (`$invocations`); use to verify per-node calls under `wait_all` where subshell-internal array mutations would otherwise be lost. |
 | `make_pbt_node_ssh <uname> <kernel-list-lines...>` | `node_functions_spec.sh` | `node_ssh` mock for `node_needs_reboot`'s proxmox-boot-tool branch. |
 | `make_grub_node_ssh <uname> <grub-lines...>` | `node_functions_spec.sh` | `node_ssh` mock for `node_needs_reboot`'s grub.cfg fallback branch. |
 | `make_manager_status_pvesh <node> <status> ...` | `node_functions_spec.sh` | `node_pvesh` mock returning HA manager_status JSON from `(node, status)` pairs. |
@@ -480,7 +481,7 @@ It 'exits 0 with --help and shows usage' do
 End
 ```
 
-## Testing Background Jobs (wait_all_succeed)
+## Testing Background Jobs (wait_all)
 
 ### Override sleep to avoid test slowness
 
@@ -492,7 +493,7 @@ wait_sleep() { :; }  # instant return, no actual sleep
 It 'returns success when all jobs complete' do
   MyJob() { echo "done"; exit 0; }
 
-  When call wait_all_succeed MyJob my_array
+  When call wait_all MyJob my_array
   The status should be success
 End
 ```
@@ -540,7 +541,7 @@ End
 | Multi-line `Before` raises "Unexpected End" | `Before` requires `do` for multi-line bodies (`Before do ... End`). `Before 'one-liner'` is the single-statement form. |
 | Test times out / hangs at `verbose>=6` | `process_args` enables `set -x` globally at `verbose>=6` to aid live debugging. Don't drive that ladder from tests — verbose=5 is enough for the ssh-verbosity branch; skip 6+. |
 | ERR trap test doesn't fire on intermediate failures | The trap fires via errexit, but `When call` doesn't enable `set -e`. Add `Set errexit:on` at the Describe scope. |
-| Subshell mock writes (e.g. `wait_all_succeed`) lose `+=` updates | Use the `record_invocations <fn>` helper — the tempfile survives the subshell boundary. |
+| Subshell mock writes (e.g. `wait_all`) lose `+=` updates | Use the `record_invocations <fn>` helper — the tempfile survives the subshell boundary. |
 | shellcheck SC2178 on `local -n` followed by array write | Known false-positive: shellcheck can't model namerefs. Rename the nameref to something distinct from other read-only namerefs in the file (e.g. `nodes_inout`) to avoid cross-function aliasing, plus a `# shellcheck disable=SC2178` if needed. |
 
 ## Test File Organization

@@ -9,6 +9,7 @@ declare program_name
 program_name="$(basename "$0")"
 declare ssh_user="${PVE_UPGRADE_SSH_USER:-root}"
 declare ssh_key_auth_only=true
+declare ssh_multiplexing=true
 declare cluster_node_use_ip=false
 declare force_upgrade=false
 declare force_reboot=false
@@ -817,8 +818,12 @@ OPTIONS
 
     --ssh-allow-password-auth
         Allow ssh password auth. Default is to force SSH key auth with
-        'PasswordAuthentication=no'. Strongly recommended against — you may
-        have to enter your password hundreds of times.
+        'PasswordAuthentication=no'.
+
+    --no-ssh-multiplexing
+        Disable SSH connection multiplexing. By default a single master
+        connection per host is reused (ControlMaster/ControlPath/ControlPersist)
+        so the many per-node commands avoid a fresh TCP+auth handshake each time.
 
     --cluster-node-use-ip
         When using '--cluster-node', use the IP address instead of the node name.
@@ -959,6 +964,9 @@ process_args() {
       --ssh-allow-password-auth)
         ssh_key_auth_only=false
         ;;
+      --no-ssh-multiplexing)
+        ssh_multiplexing=false
+        ;;
       --cluster-node-use-ip)
         cluster_node_use_ip=true
         ;;
@@ -1025,6 +1033,22 @@ process_args() {
 
   ssh_options+=(-l "$ssh_user")
   [[ "$ssh_key_auth_only" == true ]] && ssh_options+=(-o "PasswordAuthentication=no")
+
+  # Multiplex SSH: the first connection to a host opens a master that the many
+  # subsequent per-node commands (probes + 1-5s poll loops) reuse, avoiding a
+  # fresh TCP+auth handshake each time. ServerAlive* lets the shared master
+  # notice a host dropping (e.g. during reboot) instead of hanging on the
+  # dmesg -W follower until the kernel TCP timeout. Quote the values so bash
+  # leaves '~' and '%C' for ssh to expand.
+  if [[ "$ssh_multiplexing" == true ]]; then
+    ssh_options+=(
+      -o "ControlMaster=auto"
+      -o "ControlPath=~/.ssh/control-%C"
+      -o "ControlPersist=60"
+      -o "ServerAliveInterval=5"
+      -o "ServerAliveCountMax=2"
+    )
+  fi
 
   if [[ -z ${cluster_node:-} && ${#cluster_nodes[@]} -eq 0 ]]; then
     error_exit_usage "One of --cluster-node, or --nodes must be used."
