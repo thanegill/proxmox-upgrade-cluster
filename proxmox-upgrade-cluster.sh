@@ -526,41 +526,36 @@ node_pre_flight_check() {
   log_prefix "$node" log_success "All cluster nodes are online."
 }
 
-node_enter_maintenance() {
+node_set_maintenance() {
   local node=${1?}
+  # action is "enable" (entering maintenance) or "disable" (exiting).
+  local action=${2?}
 
   if [[ "$use_maintenance_mode" == false ]]; then
     log_prefix "$node" log_warning "Not setting maintenance mode."
     return 0
   fi
 
-  log_prefix "$node" log_status "Enabling maintenance mode."
+  local target_mode
+  if [[ "$action" == enable ]]; then
+    log_prefix "$node" log_status "Enabling maintenance mode."
+    target_mode="maintenance"
+  else
+    log_prefix "$node" log_status "Disabling maintenance mode."
+    target_mode="online"
+    # Exiting maintenance needs the HA LRM service up before we can disable it.
+    node_wait_until_service_running "$node" "pve-ha-lrm"
+  fi
+
   # shellcheck disable=SC2016 # $(hostname) is supposed to run in remote host.
-  node_ssh_no_op "$node" 'ha-manager crm-command node-maintenance enable $(hostname)' | log_pipe_level 1 "[$node]    "
+  node_ssh_no_op "$node" "ha-manager crm-command node-maintenance $action "'$(hostname)' | log_pipe_level 1 "[$node]    "
 
-  # Don't wait for maintenance when dry-run
-  if [[ "$dry_run" == true ]]; then return 0; fi
-
-  node_wait_until_mode "$node" "maintenance"
-}
-
-node_exit_maintenance() {
-  local node=${1?}
-
-  if [[ "$use_maintenance_mode" == false ]]; then
+  # Don't wait for the mode transition when dry-run.
+  if [[ "$dry_run" == true ]]; then
     return 0
   fi
 
-  node_wait_until_service_running "$node" "pve-ha-lrm"
-
-  log_prefix "$node" log_status "Disabling maintenance mode."
-  # shellcheck disable=SC2016 # $(hostname) is supposed to run in remote host.
-  node_ssh_no_op "$node" 'ha-manager crm-command node-maintenance disable $(hostname)' | log_pipe_level 1 "[$node]    "
-
-  # Don't wait for maintenance when dry-run
-  if [[ "$dry_run" == true ]]; then return 0; fi
-
-  node_wait_until_mode "$node" "online"
+  node_wait_until_mode "$node" "$target_mode"
 }
 
 node_upgrade() {
@@ -697,9 +692,9 @@ node_run_update_sequence() {
   #   a spurious "may still be in maintenance" warning on every node, every
   #   upgrade — even when the parent flow succeeded cleanly (see the smoke
   #   test in 59c518d -> 2c544f4). Without errtrace the trap only fires at
-  #   THIS scope, when one of the direct stage calls (node_enter_maintenance,
-  #   node_upgrade, node_reboot, node_post_upgrade, node_exit_maintenance,
-  #   etc.) returns non-zero — which is exactly the signal we care about.
+  #   THIS scope, when one of the direct stage calls (node_set_maintenance,
+  #   node_upgrade, node_reboot, node_post_upgrade, etc.) returns non-zero
+  #   — which is exactly the signal we care about.
   #
   # The "does not enable errtrace" test in spec/upgrade_sequence_spec.sh
   # pins this contract: changing the function to `set -E` would re-introduce
@@ -716,7 +711,7 @@ node_run_update_sequence() {
 
   # Enter maintenance and wait for HA to migrate guests onto peers.
   [[ "$use_maintenance_mode" == true ]] && in_maintenance=true
-  node_enter_maintenance "$node"
+  node_set_maintenance "$node" enable
   node_wait_all_tasks_completed "$node"
   if [[ "$dry_run" != true ]]; then
     node_wait_until_no_running_guests "$node"
@@ -728,7 +723,7 @@ node_run_update_sequence() {
   node_post_upgrade "$node"
 
   # Exit maintenance.
-  node_exit_maintenance "$node"
+  node_set_maintenance "$node" disable
   in_maintenance=false
 
   trap - ERR

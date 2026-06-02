@@ -1,71 +1,63 @@
-Describe 'node_enter_maintenance'
+Describe 'node_set_maintenance'
   Include proxmox-upgrade-cluster.sh
 
   Before 'verbose=1'
 
-  It 'skips when use_maintenance_mode is false' do
+  It 'skips and warns when use_maintenance_mode is false (enable)' do
     use_maintenance_mode=false
     node_ssh_no_op() { echo 'skipped'; }
-    When call node_enter_maintenance 'pve1'
+    When call node_set_maintenance 'pve1' enable
     The status should be success
     The error should include 'Not setting maintenance mode'
   End
 
-  It 'calls ssh_no_op and waits for maintenance mode' do
-    verbose=1
+  It 'enables maintenance and waits for maintenance mode' do
     use_maintenance_mode=true
     dry_run=false
     node_ssh_no_op() { echo 'maintenance set'; }
     node_wait_until_mode() { echo 'in maintenance'; }
 
-    When call node_enter_maintenance 'pve1'
+    When call node_set_maintenance 'pve1' enable
     The status should be success
     The output should include 'in maintenance'
     The error should include 'Enabling maintenance mode'
   End
 
-  It 'skips wait_until_mode when dry_run is true' do
-    verbose=1
+  It 'skips wait_until_mode when dry_run is true (enable)' do
     use_maintenance_mode=true
     dry_run=true
     node_ssh_no_op() { echo 'maintenance set'; }
     called_wait=0
     node_wait_until_mode() { called_wait=1; }
 
-    When call node_enter_maintenance 'pve1'
+    When call node_set_maintenance 'pve1' enable
     The status should be success
     The error should include 'Enabling maintenance mode'
   End
-End
 
-Describe 'node_exit_maintenance'
-  Include proxmox-upgrade-cluster.sh
-
-  It 'skips when use_maintenance_mode is false' do
-    verbose=1
+  It 'skips and warns when use_maintenance_mode is false (disable)' do
     use_maintenance_mode=false
 
-    When call node_exit_maintenance 'pve1'
+    When call node_set_maintenance 'pve1' disable
     The status should be success
+    The error should include 'Not setting maintenance mode'
   End
 
-  It 'calls service wait, ssh_no_op, and mode wait' do
-    verbose=1
+  It 'disables maintenance: waits for service, ssh_no_op, then mode wait' do
     use_maintenance_mode=true
     dry_run=false
     node_wait_until_service_running() { echo 'service running'; }
     node_ssh_no_op() { echo 'maintenance disabled'; }
     node_wait_until_mode() { echo 'online'; }
 
-    When call node_exit_maintenance 'pve1'
+    When call node_set_maintenance 'pve1' disable
     The status should be success
     The output should include 'service running'
     The output should include 'online'
     The error should include 'Disabling maintenance mode'
   End
 
-  It 'skips wait_until_mode when dry_run is true' do
-    verbose=1
+  It 'skips wait_until_mode when dry_run is true (disable)' do
     use_maintenance_mode=true
     dry_run=true
     node_wait_until_service_running() { echo 'service running'; }
@@ -73,7 +65,7 @@ Describe 'node_exit_maintenance'
     called_wait=0
     node_wait_until_mode() { called_wait=1; }
 
-    When call node_exit_maintenance 'pve1'
+    When call node_set_maintenance 'pve1' disable
     The status should be success
     The output should include 'service running'
     The error should include 'Disabling maintenance mode'
@@ -230,10 +222,10 @@ End
 Describe 'node_post_upgrade'
   Include proxmox-upgrade-cluster.sh
 
-  # node_exit_maintenance was lifted out of node_post_upgrade into
-  # node_run_update_sequence so per-step early-returns don't strand a
-  # node in maintenance. These tests cover just the apt-cleanup work
-  # that remains.
+  # Exiting maintenance was lifted out of node_post_upgrade into
+  # node_run_update_sequence (now a direct node_set_maintenance disable
+  # call) so per-step early-returns don't strand a node in maintenance.
+  # These tests cover just the apt-cleanup work that remains.
 
   It 'logs the no-reinstall path when pkgs_reinstall is empty' do
     pkgs_reinstall=()
@@ -279,13 +271,12 @@ Describe 'node_run_update_sequence'
   # stub(s) it wants to fail or trace. Mirrors install_main_happy_path_stubs.
   install_update_sequence_happy_stubs() {
     node_pre_flight_check()             { :; }
-    node_enter_maintenance()            { :; }
+    node_set_maintenance()              { :; }
     node_wait_all_tasks_completed()     { :; }
     node_wait_until_no_running_guests() { :; }
     node_upgrade()                      { :; }
     node_reboot()                       { :; }
     node_post_upgrade()                 { :; }
-    node_exit_maintenance()             { :; }
   }
 
   It 'runs all upgrade steps on the success path without warning' do
@@ -304,24 +295,23 @@ Describe 'node_run_update_sequence'
     # the relative ordering.
     invocations="$(mktemp)"
     node_pre_flight_check()             { echo 'pre_flight' >> "$invocations"; }
-    node_enter_maintenance()            { echo 'enter_maintenance' >> "$invocations"; }
+    node_set_maintenance()              { echo "maintenance:$2" >> "$invocations"; }
     node_wait_all_tasks_completed()     { :; }
     node_wait_until_no_running_guests() { :; }
     node_upgrade()                      { echo 'upgrade' >> "$invocations"; }
     node_reboot()                       { echo 'reboot' >> "$invocations"; }
     node_post_upgrade()                 { echo 'post_upgrade' >> "$invocations"; }
-    node_exit_maintenance()             { echo 'exit_maintenance' >> "$invocations"; }
 
     When call node_run_update_sequence 'pve1'
     The status should be success
     The error should include 'Starting upgrade'
     The error should include 'Successfully upgraded'
     The line 1 of contents of file "$invocations" should eq 'pre_flight'
-    The line 2 of contents of file "$invocations" should eq 'enter_maintenance'
+    The line 2 of contents of file "$invocations" should eq 'maintenance:enable'
     The line 3 of contents of file "$invocations" should eq 'upgrade'
     The line 4 of contents of file "$invocations" should eq 'reboot'
     The line 5 of contents of file "$invocations" should eq 'post_upgrade'
-    The line 6 of contents of file "$invocations" should eq 'exit_maintenance'
+    The line 6 of contents of file "$invocations" should eq 'maintenance:disable'
     rm -f "$invocations"
   End
 
@@ -331,7 +321,7 @@ Describe 'node_run_update_sequence'
     node_upgrade() { return 1; }
     node_reboot() { echo 'should not reach reboot' >&2; }
     node_post_upgrade() { echo 'should not reach post' >&2; }
-    node_exit_maintenance() { echo 'auto-recovery ran (BAD)' >&2; }
+    node_set_maintenance() { [[ "$2" == disable ]] && echo 'auto-recovery ran (BAD)' >&2; return 0; }
 
     When run node_run_update_sequence 'pve1'
     The status should be failure
@@ -341,10 +331,10 @@ Describe 'node_run_update_sequence'
     The error should not include 'auto-recovery ran'
   End
 
-  It 'fires the trap when node_enter_maintenance fails' do
+  It 'fires the trap when entering maintenance fails' do
     install_update_sequence_happy_stubs
     use_maintenance_mode=true
-    node_enter_maintenance() { return 1; }
+    node_set_maintenance() { [[ "$2" == enable ]] && return 1; return 0; }
     node_upgrade() { echo 'should not reach upgrade' >&2; }
     node_reboot() { echo 'should not reach reboot' >&2; }
     node_post_upgrade() { echo 'should not reach post' >&2; }
@@ -355,10 +345,10 @@ Describe 'node_run_update_sequence'
     The error should not include 'should not reach'
   End
 
-  It 'fires the trap when node_exit_maintenance fails' do
+  It 'fires the trap when exiting maintenance fails' do
     install_update_sequence_happy_stubs
     use_maintenance_mode=true
-    node_exit_maintenance() { return 1; }
+    node_set_maintenance() { [[ "$2" == disable ]] && return 1; return 0; }
 
     When run node_run_update_sequence 'pveW'
     The status should be failure
@@ -381,8 +371,8 @@ Describe 'node_run_update_sequence'
     install_update_sequence_happy_stubs
     use_maintenance_mode=true
     node_post_upgrade() { return 1; }
-    # If post_upgrade fails, the orchestrator never reaches node_exit_maintenance.
-    node_exit_maintenance() { echo 'should not reach exit_maintenance' >&2; }
+    # If post_upgrade fails, the orchestrator never exits maintenance (disable).
+    node_set_maintenance() { [[ "$2" == disable ]] && echo 'should not reach exit_maintenance' >&2; return 0; }
 
     When run node_run_update_sequence 'pveZ'
     The status should be failure
