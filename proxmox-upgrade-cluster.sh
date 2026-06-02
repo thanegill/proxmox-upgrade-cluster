@@ -249,8 +249,11 @@ wait_all() {
 
 wait_all_failed() {
   # Emit (one per line) the args whose command failed.
+  local cmd=${1?}
+  local args_name=${2?}
   local -a _failed=()
-  wait_all "${1?}" "${2?}" _failed || true
+
+  wait_all "$cmd" "$args_name" _failed || true
   if [[ ${#_failed[@]} -gt 0 ]]; then
     printf '%s\n' "${_failed[@]}"
   fi
