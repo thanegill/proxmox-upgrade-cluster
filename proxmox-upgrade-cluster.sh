@@ -142,12 +142,26 @@ log_progress_end() {
   fi
 }
 
-join_comma() {
-  # Join arguments into a comma-separated list for human-readable output.
-  # Node names contain no spaces, so a default-IFS join followed by a
-  # space-to-", " substitution yields "pve2, pve3".
-  local joined="$*"
-  echo "${joined// /, }"
+health_check() {
+  # Run a pre-flight health check: emit the status line, capture the failing
+  # nodes produced by the command in "$@" (one node name per line), then
+  # either log success or name the offenders and exit 1.
+  local status_msg=${1?}
+  local error_msg=${2?}
+  local success_msg=${3?}
+  shift 3
+
+  log_status "$status_msg"
+  local -a bad=()
+  mapfile -t bad < <("$@")
+  if [[ ${#bad[@]} -gt 0 ]]; then
+    # Node names contain no spaces, so a default-IFS join with the spaces
+    # rewritten to ", " yields a human-readable "pveA, pveB".
+    local joined="${bad[*]}"
+    log_error "$error_msg: ${joined// /, }."
+    exit 1
+  fi
+  log_success "$success_msg"
 }
 
 wait_all() {
@@ -1057,48 +1071,32 @@ main() {
 
   log_success "Using '${cluster_nodes[*]}' as all nodes to check."
 
-  log_status "Checking if any nodes are currently down..."
-  local -a down_nodes=()
-  mapfile -t down_nodes < <(wait_all_failed is_node_up cluster_nodes)
-  if [[ ${#down_nodes[@]} -gt 0 ]]; then
-    log_error "At least one node is currently down: $(join_comma "${down_nodes[@]}")."
-    exit 1
-  else
-    log_success "All nodes are up."
-  fi
+  health_check \
+    "Checking if any nodes are currently down..." \
+    "At least one node is currently down" \
+    "All nodes are up." \
+    wait_all_failed is_node_up cluster_nodes
 
-  log_status "Checking if any nodes are not proxmox..."
-  local -a non_proxmox_nodes=()
-  mapfile -t non_proxmox_nodes < <(wait_all_failed is_node_proxmox cluster_nodes)
-  if [[ ${#non_proxmox_nodes[@]} -gt 0 ]]; then
-    log_error "At least one node doesn't seem to be proxmox: $(join_comma "${non_proxmox_nodes[@]}")."
-    exit 1
-  else
-    log_success "All nodes are proxmox."
-  fi
+  health_check \
+    "Checking if any nodes are not proxmox..." \
+    "At least one node doesn't seem to be proxmox" \
+    "All nodes are proxmox." \
+    wait_all_failed is_node_proxmox cluster_nodes
 
-  log_status "Checking if any nodes are currently not online..."
-  local -a offline_nodes=()
-  mapfile -t offline_nodes < <(node_get_offline_nodes "${cluster_nodes[0]}")
-  if [[ ${#offline_nodes[@]} -ne 0 ]]; then
-    log_error "At least one node is currently not online: $(join_comma "${offline_nodes[@]}")."
-    exit 1
-  else
-    log_success "All nodes are online."
-  fi
+  health_check \
+    "Checking if any nodes are currently not online..." \
+    "At least one node is currently not online" \
+    "All nodes are online." \
+    node_get_offline_nodes "${cluster_nodes[0]}"
 
   if [[ "$allow_running_tasks" == true ]]; then
     log_warning "Not checking for running cluster tasks."
   else
-    log_status "Checking if any nodes currently have tasks running..."
-    local -a busy_nodes=()
-    mapfile -t busy_nodes < <(wait_all_failed node_not_running_task cluster_nodes)
-    if [[ ${#busy_nodes[@]} -gt 0 ]]; then
-      log_error "At least one node is currently running tasks: $(join_comma "${busy_nodes[@]}")."
-      exit 1
-    else
-      log_success "No tasks are running."
-    fi
+    health_check \
+      "Checking if any nodes currently have tasks running..." \
+      "At least one node is currently running tasks" \
+      "No tasks are running." \
+      wait_all_failed node_not_running_task cluster_nodes
   fi
 
   if [[ "$reboot_only" == true ]]; then

@@ -311,3 +311,34 @@ Describe 'main'
     End
   End
 End
+
+Describe 'health_check'
+  Include proxmox-upgrade-cluster.sh
+
+  It 'logs the success message and continues when the producer emits nothing' do
+    emit_none() { :; }
+
+    When run health_check 'Checking foo...' 'Some nodes are bad' 'All good.' emit_none
+    The status should be success
+    The error should include 'Checking foo...'
+    The error should include 'All good.'
+  End
+
+  It 'names the offenders and exits 1 when the producer emits nodes' do
+    emit_two() { printf '%s\n' pveA pveB; }
+
+    When run health_check 'Checking foo...' 'Some nodes are bad' 'All good.' emit_two
+    The status should be failure
+    The status should eq 1
+    The error should include 'Some nodes are bad: pveA, pveB.'
+    The error should not include 'All good.'
+  End
+
+  It 'forwards extra args to the producer command' do
+    emit_args() { printf '%s\n' "$@"; }
+
+    When run health_check 'Checking foo...' 'Bad' 'Good.' emit_args pveX pveY
+    The status should be failure
+    The error should include 'Bad: pveX, pveY.'
+  End
+End
