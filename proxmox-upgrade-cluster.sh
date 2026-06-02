@@ -629,6 +629,12 @@ node_reboot() {
   log_prefix "$node" log_error "Rebooting in 5 seconds! Press CTRL-C to cancel..."
   wait_sleep 5s
   log_prefix "$node" log_status "Rebooting, logging shutdown dmesg:"
+
+  # Time the full reboot (shutdown + boot) from here until the node answers
+  # again. SECONDS below bounds only the come-back-up wait, so use a wall
+  # clock that spans the whole cycle.
+  local -i reboot_started=$EPOCHSECONDS
+
   # Keepalive options bound the time we will wait for ssh to drop while the
   # node is shutting down. Without these the dmesg -W follower can block until
   # the kernel's default TCP timeout, which delays the come-back-up poll loop.
@@ -648,7 +654,7 @@ node_reboot() {
   done
   log_progress_end
 
-  log_prefix "$node" log_success "Rebooted successfully."
+  log_prefix "$node" log_success "Rebooted successfully in $((EPOCHSECONDS - reboot_started))s."
 }
 
 node_post_upgrade() {

@@ -115,6 +115,14 @@ Describe 'node_reboot'
     The error should include 'Rebooted successfully'
   End
 
+  It 'reports how long the reboot took on success' do
+    install_reboot_stubs
+    force_reboot=true
+    When call node_reboot 'pve1'
+    The status should be success
+    The error should match pattern '*Rebooted successfully in [0-9]*s.*'
+  End
+
   It 'reboots when node_needs_reboot is true and force_reboot is false' do
     install_reboot_stubs
     node_needs_reboot() { return 0; }
