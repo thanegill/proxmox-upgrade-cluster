@@ -254,7 +254,7 @@ Describe 'process_args --jq-bin (removed)'
     verbose=1
     When run process_args '--cluster-node' 'pve1' '--jq-bin' '/usr/local/bin/jq'
     The status should be failure
-    The error should include "unknown option '--jq-bin'"
+    The error should include "Unknown option '--jq-bin'"
   End
 End
 
@@ -319,7 +319,7 @@ Describe 'process_args --verbose'
     verbose=1
     When run process_args '-vc' 'pve1'
     The status should be failure
-    The error should include "unknown option '-vc'"
+    The error should include "Unknown option '-vc'"
   End
 
   It 'adds -v to ssh_options when verbose reaches 5' do
@@ -347,7 +347,7 @@ Describe 'process_args error cases'
     verbose=1
     When run process_args '--cluster-node' 'pve1' '--unknown-option'
     The status should be failure
-    The error should include 'unknown option'
+    The error should include 'Unknown option'
   End
 
   It 'exits with error when --cluster-node precedes --node' do

@@ -912,23 +912,23 @@ process_args() {
   while [[ $# -ne 0 ]]; do
     case "${1?}" in
       --cluster-node | -c)
+        error_on_no_arg "${1?}" "${2:-}"
         shift
-        error_on_no_arg "--cluster-node|-c" "${1:-}"
         cluster_node="$1"
         ;;
       --node | -n)
+        error_on_no_arg "${1?}" "${2:-}"
         shift
-        error_on_no_arg "--node|-n" "${1:-}"
         cluster_nodes+=("$1")
         ;;
       --ssh-user | -u)
+        error_on_no_arg "${1?}" "${2:-}"
         shift
-        error_on_no_arg "--ssh-user" "${1:-}"
         ssh_user="$1"
         ;;
       --ssh-opt | -o)
+        error_on_no_arg "${1?}" "${2:-}" true
         shift
-        error_on_no_arg "--ssh-opt" "${1:-}" true
         ssh_options+=("$1")
         ;;
       --ssh-allow-password-auth)
@@ -941,8 +941,8 @@ process_args() {
         dry_run=true
         ;;
       --pkg-reinstall)
+        error_on_no_arg "${1?}" "${2:-}"
         shift
-        error_on_no_arg "--pkg-reinstall" "${1:-}"
         pkgs_reinstall+=("$1")
         ;;
       --force-upgrade)
@@ -970,8 +970,8 @@ process_args() {
         preserve_discovery_order=true
         ;;
       --reboot-timeout)
+        error_on_no_arg "${1?}" "${2:-}"
         shift
-        error_on_no_arg "--reboot-timeout" "${1:-}"
         reboot_timeout="$1"
         ;;
       --verbose)
@@ -985,9 +985,7 @@ process_args() {
         exit 0
         ;;
       -*)
-        log_error "$program_name ERROR: unknown option '${1?}'"
-        log_error "Use $program_name --help for help with command-line options."
-        exit 1
+        error_exit_usage "Unknown option '${1?}'"
         ;;
       *)
         break
