@@ -382,15 +382,17 @@ sort_nodes_by_guest_count() {
   nodes_inout=("${sorted[@]}")
 }
 
-node_get_offline_count() {
-  local node=${1?}
-  node_pvesh "$node" 'cluster/ha/status/manager_status' | jq -rc '[.manager_status.node_status[] | select(. != "online")] | length'
-}
-
 node_get_offline_nodes() {
   # Emit one offline node name per line so callers can read into an array.
   local node=${1?}
   node_pvesh "$node" 'cluster/ha/status/manager_status' | jq -r '.manager_status.node_status | to_entries[] | select(.value != "online") | .key'
+}
+
+node_get_offline_count() {
+  local node=${1?}
+  local -a offline
+  mapfile -t offline < <(node_get_offline_nodes "$node")
+  echo "${#offline[@]}"
 }
 
 node_get_mode() {
