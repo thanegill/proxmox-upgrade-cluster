@@ -555,7 +555,7 @@ spec/
   main_spec.sh             # main() flow control + jq prerequisite + sort wiring
   node_functions_spec.sh   # Node SSH, pvesh, maintenance, reboot, kernel detection
   upgrade_sequence_spec.sh # Upgrade flow (enter/exit maintenance, reboot, run_update_sequence)
-  wait_all_succeed_spec.sh # Background job management
+  wait_all_spec.sh         # Background job management (wait_all + succeed/failed)
 ```
 
 ## Adding a New Test

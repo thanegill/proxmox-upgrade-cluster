@@ -10,10 +10,10 @@
 install_main_happy_path_stubs() {
   is_node_up() { return 0; }
   is_node_proxmox() { return 0; }
-  all_nodes_up() { return 0; }
-  all_nodes_proxmox() { return 0; }
+  # The down / not-proxmox / running-tasks checks all go through
+  # wait_all_failed; emitting nothing means "no failed nodes".
+  wait_all_failed() { :; }
   node_get_offline_nodes() { :; }
-  any_nodes_running_tasks() { return 0; }
   apt_update_nodes() { :; }
   get_nodes_upgradeable() { :; }
   node_run_update_sequence() { echo "UPGRADE: $1"; }
@@ -60,8 +60,7 @@ Describe 'main'
       is_node_proxmox() { return 0; }
       get_cluster_nodes() { :; }
       node_get_offline_nodes() { echo 'CANARY: should not be called'; }
-      all_nodes_up() { return 0; }
-      all_nodes_proxmox() { return 0; }
+      wait_all_failed() { :; }
 
       When run main '--cluster-node' 'pve1'
       The status should be failure
@@ -101,13 +100,9 @@ Describe 'main'
 
     It 'exits with error naming the nodes that are down' do
       install_main_happy_path_stubs
-      # Populate the caller's failed-nodes out-array (2nd arg) so main can
-      # name the offenders in the error.
-      all_nodes_up() {
-        local -n out=$2
-        out=(pve2 pve3)
-        return 1
-      }
+      # main collects failed nodes via `wait_all_failed <predicate> cluster_nodes`;
+      # emit the offenders for the matching predicate so main can name them.
+      wait_all_failed() { [[ "$1" == is_node_up ]] && printf '%s\n' pve2 pve3; }
       When run main '--cluster-node' 'pve1'
       The status should be failure
       The error should include 'At least one node is currently down: pve2, pve3.'
@@ -115,11 +110,7 @@ Describe 'main'
 
     It 'exits with error naming the nodes that are not proxmox' do
       install_main_happy_path_stubs
-      all_nodes_proxmox() {
-        local -n out=$2
-        out=(pve2)
-        return 1
-      }
+      wait_all_failed() { [[ "$1" == is_node_proxmox ]] && printf '%s\n' pve2; }
       When run main '--cluster-node' 'pve1'
       The status should be failure
       The error should include "doesn't seem to be proxmox: pve2."
@@ -135,11 +126,7 @@ Describe 'main'
 
     It 'exits with error naming the nodes that are running tasks' do
       install_main_happy_path_stubs
-      any_nodes_running_tasks() {
-        local -n out=$2
-        out=(pve3)
-        return 1
-      }
+      wait_all_failed() { [[ "$1" == node_not_running_task ]] && printf '%s\n' pve3; }
       When run main '--cluster-node' 'pve1'
       The status should be failure
       The error should include 'running tasks: pve3.'
@@ -147,7 +134,7 @@ Describe 'main'
 
     It 'skips the running-tasks check when allow_running_tasks is true' do
       install_main_happy_path_stubs
-      any_nodes_running_tasks() { echo 'TASK_CHECK_RAN' >&2; return 1; }
+      wait_all_failed() { [[ "$1" == node_not_running_task ]] && echo 'TASK_CHECK_RAN' >&2; }
       When run main '--cluster-node' 'pve1' '--allow-running-tasks'
       The status should be success
       The error should include 'Not checking for running cluster tasks'
@@ -198,10 +185,8 @@ Describe 'main'
     pass_health_checks_reboot_only() {
       is_node_up() { return 0; }
       is_node_proxmox() { return 0; }
-      all_nodes_up() { return 0; }
-      all_nodes_proxmox() { return 0; }
+      wait_all_failed() { :; }
       node_get_offline_nodes() { :; }
-      any_nodes_running_tasks() { return 0; }
       node_run_update_sequence() { echo "RUN: $1"; }
       get_cluster_nodes() { printf '%s\n' pveA pveB pveC; }
     }
@@ -256,10 +241,8 @@ Describe 'main'
     pass_health_checks() {
       is_node_up() { return 0; }
       is_node_proxmox() { return 0; }
-      all_nodes_up() { return 0; }
-      all_nodes_proxmox() { return 0; }
+      wait_all_failed() { :; }
       node_get_offline_nodes() { :; }
-      any_nodes_running_tasks() { return 0; }
       apt_update_nodes() { :; }
       node_run_update_sequence() { echo "RUN: $1"; }
     }

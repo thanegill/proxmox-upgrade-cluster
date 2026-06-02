@@ -522,7 +522,12 @@ End
 Describe 'get_nodes_upgradeable'
   Include proxmox-upgrade-cluster.sh
 
-  It 'emits nodes that have updates, one per line' do
+  # node_has_updates is stubbed here, so its own "Updates available." /
+  # "No updates available." logging (covered in node_functions_spec.sh) does
+  # not appear — these tests assert only the filter's emission + the
+  # "Removed from upgrade sequence." line.
+
+  It 'emits nodes that have updates, one per line, in input order' do
     Mock node_has_updates
       exit 0
     End
@@ -532,10 +537,10 @@ Describe 'get_nodes_upgradeable'
     The line 1 of output should eq 'pve1'
     The line 2 of output should eq 'pve2'
     The lines of output should eq 2
-    The error should include 'Updates available'
   End
 
-  It 'excludes nodes without updates' do
+  It 'excludes nodes without updates and logs them removed at verbose>=1' do
+    verbose=1
     # Inline override — Mock's subshell would lose the persistent counter.
     node_has_updates() { [[ "$1" == 'pve1' ]]; }
     cluster_nodes=("pve1" "pve2")
@@ -543,7 +548,7 @@ Describe 'get_nodes_upgradeable'
     When call get_nodes_upgradeable cluster_nodes
     The output should eq 'pve1'
     The lines of output should eq 1
-    The error should include 'Updates available'
+    The error should include 'Removed from upgrade sequence'
   End
 
   It 'returns empty output when called with empty array' do
@@ -564,12 +569,16 @@ Describe 'get_nodes_upgradeable'
 
     When call get_nodes_upgradeable cluster_nodes
     The output should eq ''
-    The error should include 'No updates available'
   End
 End
 
 Describe 'get_nodes_needing_reboot'
   Include proxmox-upgrade-cluster.sh
+
+  # node_needs_reboot is stubbed here, so its own "Reboot required." /
+  # "No reboot required." logging (covered in node_functions_spec.sh) does
+  # not appear — these tests assert the filter's emission/order + the
+  # "Removed from reboot sequence." line.
 
   It 'emits nodes that need a reboot, one per line, in input order' do
     node_needs_reboot() {
@@ -585,8 +594,6 @@ Describe 'get_nodes_needing_reboot'
     The line 1 of output should eq 'pveB'
     The line 2 of output should eq 'pveC'
     The lines of output should eq 2
-    The error should include 'Reboot required'
-    The error should include 'No reboot required'
   End
 
   It 'emits all nodes when every node needs a reboot' do
@@ -600,7 +607,6 @@ Describe 'get_nodes_needing_reboot'
     The line 2 of output should eq 'pve2'
     The line 3 of output should eq 'pve3'
     The lines of output should eq 3
-    The error should include 'Reboot required'
   End
 
   It 'returns empty output when no nodes need a reboot' do
@@ -611,7 +617,6 @@ Describe 'get_nodes_needing_reboot'
 
     When call get_nodes_needing_reboot cluster_nodes
     The output should eq ''
-    The error should include 'No reboot required'
   End
 
   It 'returns empty output when called with an empty array' do
@@ -633,7 +638,6 @@ Describe 'get_nodes_needing_reboot'
     When call get_nodes_needing_reboot cluster_nodes
     The output should eq 'soloN'
     The lines of output should eq 1
-    The error should include 'Reboot required'
   End
 
   It 'logs the verbose "Removed from reboot sequence" line at verbose>=1' do
@@ -651,9 +655,9 @@ End
 # and returns 0. The temp-file path is set as `$invocations` for the
 # caller to assert against via `The contents of file "$invocations"`.
 #
-# wait_all_succeed runs each invocation in a background subshell, so a
-# regular `called_nodes=()` array would lose its appends — the tempfile
-# survives the subshell boundary.
+# wait_all runs each invocation in a background subshell, so a regular
+# `called_nodes=()` array would lose its appends — the tempfile survives
+# the subshell boundary.
 #
 # Caller should `rm -f "$invocations"` after.
 record_invocations() {
@@ -676,50 +680,11 @@ Describe 'apt_update_nodes'
   End
 End
 
-Describe 'all_nodes_up'
-  Include proxmox-upgrade-cluster.sh
-
-  It 'calls is_node_up for each node' do
-    record_invocations is_node_up
-    cluster_nodes=("pve1" "pve2")
-
-    When call all_nodes_up cluster_nodes
-    The status should be success
-    The contents of file "$invocations" should include 'pve1'
-    The contents of file "$invocations" should include 'pve2'
-    rm -f "$invocations"
-  End
-End
-
-Describe 'all_nodes_proxmox'
-  Include proxmox-upgrade-cluster.sh
-
-  It 'calls is_node_proxmox for each node' do
-    record_invocations is_node_proxmox
-    cluster_nodes=("pve1" "pve2")
-
-    When call all_nodes_proxmox cluster_nodes
-    The status should be success
-    The contents of file "$invocations" should include 'pve1'
-    The contents of file "$invocations" should include 'pve2'
-    rm -f "$invocations"
-  End
-End
-
-Describe 'any_nodes_running_tasks'
-  Include proxmox-upgrade-cluster.sh
-
-  It 'calls node_not_running_task for each node' do
-    record_invocations node_not_running_task
-    cluster_nodes=("pve1" "pve2")
-
-    When call any_nodes_running_tasks cluster_nodes
-    The status should be success
-    The contents of file "$invocations" should include 'pve1'
-    The contents of file "$invocations" should include 'pve2'
-    rm -f "$invocations"
-  End
-End
+# The down / not-proxmox / running-tasks health checks no longer have
+# dedicated wrapper functions — main() captures failed nodes directly via
+# `wait_all_failed <predicate> cluster_nodes`. wait_all/wait_all_succeed/
+# wait_all_failed are covered in spec/wait_all_spec.sh, and the health-check
+# wiring is covered in spec/main_spec.sh.
 
 
 # main() tests live in spec/main_spec.sh, organized by behavior with a

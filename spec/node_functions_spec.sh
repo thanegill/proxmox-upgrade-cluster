@@ -361,25 +361,27 @@ End
 Describe 'node_has_updates'
   Include proxmox-upgrade-cluster.sh
 
-  It 'returns success when updates are available' do
+  It 'returns success and logs "Updates available." when updates are available' do
     node_ssh() { echo 'Installs: 5'; }
 
     When call node_has_updates 'pve1'
     The status should be success
+    The error should include 'Updates available.'
   End
 
-  It 'returns failure when no updates available' do
+  It 'returns failure and logs "No updates available." when none' do
     node_ssh() { echo ''; }
 
     When call node_has_updates 'pve1'
     The status should be failure
+    The error should include 'No updates available.'
   End
 
   It 'does not leak $updates into the caller scope' do
     node_ssh() { echo 'Installs: 5'; }
     leak_check() {
       unset updates
-      node_has_updates 'pve1' >/dev/null
+      node_has_updates 'pve1' >/dev/null 2>&1
       [[ -z "${updates+x}" ]] && echo 'no leak' || echo "leaked: $updates"
     }
 
@@ -523,6 +525,12 @@ End
 Describe 'node_needs_reboot'
   Include proxmox-upgrade-cluster.sh
 
+  # These kernel-detection tests are about the success/failure result, not
+  # the log line. verbose=-1 suppresses the level-0 "Reboot required." /
+  # "No reboot required." output (asserted separately in 'pass/fail logging'
+  # below) so it doesn't trip the stray-stderr warning.
+  Before 'verbose=-1'
+
   # Helpers install a `node_ssh` mock parameterised on running kernel + the
   # remote `proxmox-boot-tool kernel list` / grub.cfg output. Globals are
   # used (not function-local) because function definitions in bash don't
@@ -652,6 +660,28 @@ Describe 'node_needs_reboot'
         'linux   /boot/vmlinuz-6.0.0-pve root=...'
       When call node_needs_reboot 'pve1'
       The status should be failure
+    End
+  End
+
+  Describe 'pass/fail logging' do
+    It 'logs "Reboot required." when the kernel changed' do
+      verbose=0  # override the block-level Before 'verbose=-1'
+      make_pbt_node_ssh '7.0.2-2-pve' \
+        'Manually selected kernels:' 'None.' '' \
+        'Automatically selected kernels:' '7.0.2-2-pve' '7.0.2-3-pve'
+      When call node_needs_reboot 'pve1'
+      The status should be success
+      The error should include 'Reboot required.'
+    End
+
+    It 'logs "No reboot required." when the kernel is current' do
+      verbose=0  # override the block-level Before 'verbose=-1'
+      make_pbt_node_ssh '7.0.2-3-pve' \
+        'Manually selected kernels:' 'None.' '' \
+        'Automatically selected kernels:' '7.0.2-2-pve' '7.0.2-3-pve'
+      When call node_needs_reboot 'pve1'
+      The status should be failure
+      The error should include 'No reboot required.'
     End
   End
 End

@@ -72,8 +72,8 @@ Describe 'proxmox-upgrade-cluster.sh'
     End
 
     It 'has empty upgrade_nodes by default' do
-      all_nodes_up() { echo "${#upgrade_nodes[@]}"; }
-      When call all_nodes_up 'pve1' 'pve2'
+      report_len() { echo "${#upgrade_nodes[@]}"; }
+      When call report_len 'pve1' 'pve2'
       The output should eq '0'
     End
   End

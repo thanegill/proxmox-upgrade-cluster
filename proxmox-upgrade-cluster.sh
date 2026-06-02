@@ -150,55 +150,86 @@ join_comma() {
   echo "${joined// /, }"
 }
 
-wait_all_succeed() {
+wait_all() {
   local cmd=${1?}
-  local -n args=${2?}
-  # Optional 3rd arg: name of an array to receive the args of failed jobs.
+  local -n _args=${2?}
+  # Optional out-array names: 3rd receives the args of FAILED jobs, 4th the
+  # args of SUCCEEDED jobs. Both come back in input order.
   local failed_out_name=${3:-}
+  local succeeded_out_name=${4:-}
 
-  local -A pids
-  local -A pid_args
+  # Indexed (not associative) so the result loop iterates in start order and
+  # the collected args preserve the caller's input order.
+  local -a job_pids=()
+  local -a job_args=()
 
-  for arg in "${args[@]}"; do
+  for arg in "${_args[@]}"; do
     (
       # Inside the subshell BASHPID matches the parent's $!, so log lines
-      # tagged with [pid] line up with pids[$pid] entries below.
+      # tagged with [pid] line up with the job_pids entries below.
       if [[ $verbose -ge 4 ]]; then
         LOG_PREFIX="[${BASHPID}]${LOG_PREFIX:-}"
       fi
       "$cmd" "$arg"
     ) &
-    local pid=$!
-    pids["$pid"]="$cmd $arg"
-    pid_args["$pid"]="$arg"
-    log_prefix $pid log_prefix "${FUNCNAME[0]}" log_level 4 "Started Job: \`$cmd $arg\`"
+    job_pids+=("$!")
+    job_args+=("$arg")
+    log_prefix "$!" log_prefix "${FUNCNAME[0]}" log_level 4 "Started Job: \`$cmd $arg\`"
   done
 
   local -i failed_count=0
   local -a failed_args=()
+  local -a succeeded_args=()
 
-  for pid in "${!pids[@]}"; do
+  local i
+  for i in "${!job_pids[@]}"; do
+    local pid="${job_pids[$i]}"
+    local arg="${job_args[$i]}"
     wait "$pid"
     local cmd_exit=$?
-    local cmd="${pids["$pid"]}"
-    log_prefix "$pid" log_prefix "${FUNCNAME[0]}" log_level 4 "Finished Job: \`$cmd\` exit: $cmd_exit"
+    log_prefix "$pid" log_prefix "${FUNCNAME[0]}" log_level 4 "Finished Job: \`$cmd $arg\` exit: $cmd_exit"
 
     if [[ $cmd_exit -gt 0 ]]; then
       ((failed_count += 1))
-      failed_args+=("${pid_args["$pid"]}")
-      log_prefix "$pid" log_prefix "${FUNCNAME[0]}" log_level 1 "Job Error: \`$cmd\` exit: $cmd_exit"
+      failed_args+=("$arg")
+      log_prefix "$pid" log_prefix "${FUNCNAME[0]}" log_level 1 "Job Error: \`$cmd $arg\` exit: $cmd_exit"
+    else
+      log_prefix "$pid" log_prefix "${FUNCNAME[0]}" log_level 1 "Job succeeded: \`$cmd $arg\` exit: $cmd_exit"
+      succeeded_args+=("$arg")
     fi
   done
 
-  # Copy the failed args back to the caller's array if one was named. The
-  # result loop above runs in the caller's shell (only the jobs are
-  # subshells), so this nameref write persists.
+  # Copy results back to the caller's named arrays. The result loop above runs
+  # in the caller's shell (only the jobs are subshells), so these nameref
+  # writes persist.
   if [[ -n "$failed_out_name" ]]; then
     local -n _failed_out=$failed_out_name
     _failed_out=("${failed_args[@]}")
   fi
+  if [[ -n "$succeeded_out_name" ]]; then
+    local -n _succeeded_out=$succeeded_out_name
+    _succeeded_out=("${succeeded_args[@]}")
+  fi
 
   return $failed_count
+}
+
+wait_all_succeed() {
+  # Emit (one per line) the args whose command succeeded.
+  local -a _successful=()
+  wait_all "${1?}" "${2?}" "" _successful || true
+  if [[ ${#_successful[@]} -gt 0 ]]; then
+    printf '%s\n' "${_successful[@]}"
+  fi
+}
+
+wait_all_failed() {
+  # Emit (one per line) the args whose command failed.
+  local -a _failed=()
+  wait_all "${1?}" "${2?}" _failed || true
+  if [[ ${#_failed[@]} -gt 0 ]]; then
+    printf '%s\n' "${_failed[@]}"
+  fi
 }
 
 local_ssh() {
@@ -248,12 +279,6 @@ is_node_up() {
   return $node_status
 }
 
-all_nodes_up() {
-  local -n nodes=${1?}
-  # Optional 2nd arg: name of an array to receive the nodes that are down.
-  wait_all_succeed is_node_up nodes "${2:-}"
-}
-
 get_cluster_nodes() {
   # Emit one node per line so callers can read into an array via mapfile -t.
   local node=${1?}
@@ -274,60 +299,50 @@ is_node_proxmox() {
   return $node_status
 }
 
-all_nodes_proxmox() {
-  local -n nodes=${1?}
-  # Optional 2nd arg: name of an array to receive the non-proxmox nodes.
-  wait_all_succeed is_node_proxmox nodes "${2:-}"
-}
-
 node_has_updates() {
   local node=${1?}
   local updates
   updates="$(node_ssh "$node" 'DEBIAN_FRONTEND=noninteractive apt-get -qq -s upgrade')"
   echo "$updates" | log_pipe_level 2 "[$node][apt]"
-  [[ -n "$updates" ]]
+  if [[ -n "$updates" ]]; then
+    log_prefix "$node" log_success "Updates available."
+    return 0
+  fi
+  log_prefix "$node" log_success "No updates available."
+  return 1
+}
+
+# Emit (one per line) the nodes for which `predicate` succeeds, logging the
+# rest as dropped from the sequence. Shared by get_nodes_upgradeable and
+# get_nodes_needing_reboot; the predicate itself logs the per-node pass/fail.
+filter_nodes() {
+  local predicate=${1?}
+  local nodes_name=${2?}
+  local removed_msg=${3?}
+  local -n _nodes=$nodes_name
+
+  local -a kept=()
+  mapfile -t kept < <(wait_all_succeed "$predicate" "$nodes_name")
+
+  local node
+  for node in "${_nodes[@]}"; do
+    # Node names contain no spaces, so this membership test is safe.
+    [[ " ${kept[*]} " == *" $node "* ]] ||
+      log_prefix "$node" log_level 1 "$removed_msg"
+  done
+
+  # Guard the empty case — printf '%s\n' "${empty[@]}" would emit a blank line.
+  if [[ ${#kept[@]} -gt 0 ]]; then
+    printf '%s\n' "${kept[@]}"
+  fi
 }
 
 get_nodes_upgradeable() {
-  local -n nodes=${1?}
-  local -a nodes_with_updates=()
-
-  for node in "${nodes[@]}"; do
-    if node_has_updates "$node"; then
-      log_prefix "$node" log_success "Updates available."
-      nodes_with_updates+=("$node")
-    else
-      log_prefix "$node" log_success "No updates available."
-      log_prefix "$node" log_level 1 "Removed from upgrade sequence."
-    fi
-  done
-  # Emit one node per line so callers can read into an array via mapfile -t.
-  # Guard against the empty case — printf '%s\n' "${empty[@]}" would emit
-  # a single blank line.
-  if [[ ${#nodes_with_updates[@]} -gt 0 ]]; then
-    printf '%s\n' "${nodes_with_updates[@]}"
-  fi
+  filter_nodes node_has_updates "${1?}" "Removed from upgrade sequence."
 }
 
 get_nodes_needing_reboot() {
-  local -n nodes=${1?}
-  local -a nodes_to_reboot=()
-
-  for node in "${nodes[@]}"; do
-    if node_needs_reboot "$node"; then
-      log_prefix "$node" log_success "Reboot required."
-      nodes_to_reboot+=("$node")
-    else
-      log_prefix "$node" log_success "No reboot required."
-      log_prefix "$node" log_level 1 "Removed from reboot sequence."
-    fi
-  done
-  # Emit one node per line so callers can read into an array via mapfile -t.
-  # Guard against the empty case — printf '%s\n' "${empty[@]}" would emit
-  # a single blank line.
-  if [[ ${#nodes_to_reboot[@]} -gt 0 ]]; then
-    printf '%s\n' "${nodes_to_reboot[@]}"
-  fi
+  filter_nodes node_needs_reboot "${1?}" "Removed from reboot sequence."
 }
 
 node_apt_update() {
@@ -336,8 +351,7 @@ node_apt_update() {
 }
 
 apt_update_nodes() {
-  local -n nodes=${1?}
-  wait_all_succeed node_apt_update nodes
+  wait_all node_apt_update "${1?}"
 }
 
 node_get_running_count() {
@@ -485,12 +499,6 @@ node_not_running_task() {
   return 0
 }
 
-any_nodes_running_tasks() {
-  local -n nodes=${1?}
-  # Optional 2nd arg: name of an array to receive the nodes running tasks.
-  wait_all_succeed node_not_running_task nodes "${2:-}"
-}
-
 node_wait_all_tasks_completed() {
   local node=${1?}
 
@@ -597,7 +605,12 @@ node_needs_reboot() {
       sed -e 's%/boot/vmlinuz-%%;s%/ROOT/pve-1@%%')
   fi
 
-  test "$expected_kernel" != "$booted_kernel"
+  if [[ "$expected_kernel" != "$booted_kernel" ]]; then
+    log_prefix "$node" log_success "Reboot required."
+    return 0
+  fi
+  log_prefix "$node" log_success "No reboot required."
+  return 1
 }
 
 node_reboot() {
@@ -1046,7 +1059,8 @@ main() {
 
   log_status "Checking if any nodes are currently down..."
   local -a down_nodes=()
-  if ! all_nodes_up cluster_nodes down_nodes; then
+  mapfile -t down_nodes < <(wait_all_failed is_node_up cluster_nodes)
+  if [[ ${#down_nodes[@]} -gt 0 ]]; then
     log_error "At least one node is currently down: $(join_comma "${down_nodes[@]}")."
     exit 1
   else
@@ -1055,7 +1069,8 @@ main() {
 
   log_status "Checking if any nodes are not proxmox..."
   local -a non_proxmox_nodes=()
-  if ! all_nodes_proxmox cluster_nodes non_proxmox_nodes; then
+  mapfile -t non_proxmox_nodes < <(wait_all_failed is_node_proxmox cluster_nodes)
+  if [[ ${#non_proxmox_nodes[@]} -gt 0 ]]; then
     log_error "At least one node doesn't seem to be proxmox: $(join_comma "${non_proxmox_nodes[@]}")."
     exit 1
   else
@@ -1077,7 +1092,8 @@ main() {
   else
     log_status "Checking if any nodes currently have tasks running..."
     local -a busy_nodes=()
-    if ! any_nodes_running_tasks cluster_nodes busy_nodes; then
+    mapfile -t busy_nodes < <(wait_all_failed node_not_running_task cluster_nodes)
+    if [[ ${#busy_nodes[@]} -gt 0 ]]; then
       log_error "At least one node is currently running tasks: $(join_comma "${busy_nodes[@]}")."
       exit 1
     else
