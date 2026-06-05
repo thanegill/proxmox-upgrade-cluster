@@ -370,8 +370,8 @@ filter_nodes() {
   local node
   for node in "${_nodes[@]}"; do
     # Node names contain no spaces, so this membership test is safe.
-    [[ " ${_kept[*]} " == *" $node "* ]] ||
-      log_prefix "$node" log_level 1 "$removed_msg"
+    [[ " ${_kept[*]} " == *" $node "* ]] \
+      || log_prefix "$node" log_level 1 "$removed_msg"
   done
 }
 
@@ -385,7 +385,8 @@ node_get_running_count() {
   local type=${2?}
   local -i count
   # shellcheck disable=SC2016 # $(hostname) is supposed to run in remote host.
-  count="$(node_pvesh "$node" "nodes/\$(hostname)/$type" | jq -rc '[.[] | select(.status != "stopped")] | length')"
+  count="$(node_pvesh "$node" "nodes/\$(hostname)/$type" \
+    | jq -rc '[.[] | select(.status != "stopped")] | length')"
   log_prefix "$node" log_level 2 "Running ${type^^} count: $count"
   echo "$count"
 }
@@ -425,7 +426,8 @@ sort_nodes_by_guest_count() {
 node_get_offline_nodes() {
   # Emit one offline node name per line so callers can read into an array.
   local node=${1?}
-  node_pvesh "$node" 'cluster/ha/status/manager_status' | jq -r '.manager_status.node_status | to_entries[] | select(.value != "online") | .key'
+  node_pvesh "$node" 'cluster/ha/status/manager_status' \
+    | jq -r '.manager_status.node_status | to_entries[] | select(.value != "online") | .key'
 }
 
 node_get_offline_count() {
@@ -444,15 +446,16 @@ node_get_mode() {
   hostname=$(node_ssh "$node" hostname)
   # Pass hostname via --arg so values containing '.', leading digits, or other
   # jq-syntax characters don't break the filter.
-  node_pvesh "$node" 'cluster/ha/status/manager_status' |
-    jq -rc --arg name "$hostname" '.manager_status.node_status[$name]'
+  node_pvesh "$node" 'cluster/ha/status/manager_status' \
+    | jq -rc --arg name "$hostname" '.manager_status.node_status[$name]'
 }
 
 node_service_running() {
   local node=${1?}
   local service=${2?}
   # shellcheck disable=SC2016 # $(hostname) is supposed to run on the remote host.
-  [[ "$(node_pvesh "$node" "nodes/\$(hostname)/services/$service/state" | jq -r '.state')" == "running" ]]
+  [[ "$(node_pvesh "$node" "nodes/\$(hostname)/services/$service/state" \
+    | jq -r '.state')" == "running" ]]
 }
 
 node_wait_until_pve_service_running() {
@@ -505,8 +508,8 @@ node_wait_until_no_running_guests() {
 node_number_of_running_tasks() {
   local node=${1?}
   # shellcheck disable=SC2016 # $(hostname) is supposed to run in remote host.
-  node_pvesh "$node" 'nodes/$(hostname)/tasks' '--source=active' |
-    jq -rc '[.[] | select(.type | IN($ARGS.positional[]) | not)] | length' --args "${ignored_task_types[@]}"
+  node_pvesh "$node" 'nodes/$(hostname)/tasks' '--source=active' \
+    | jq -rc '[.[] | select(.type | IN($ARGS.positional[]) | not)] | length' --args "${ignored_task_types[@]}"
 }
 
 node_not_running_task() {
@@ -627,9 +630,9 @@ node_needs_reboot() {
   else
     # Fallback for older installs without proxmox-boot-tool — parse grub.cfg.
     # The /ROOT/pve-1@ strip handles the default ZFS root dataset name.
-    expected_kernel=$(node_ssh "$node" 'grep vmlinuz /boot/grub/grub.cfg' |
-      head -1 | awk '{ print $2 }' |
-      sed -e 's%/boot/vmlinuz-%%;s%/ROOT/pve-1@%%')
+    expected_kernel=$(node_ssh "$node" 'grep vmlinuz /boot/grub/grub.cfg' \
+      | head -1 | awk '{ print $2 }' \
+      | sed -e 's%/boot/vmlinuz-%%;s%/ROOT/pve-1@%%')
   fi
 
   if [[ "$expected_kernel" != "$booted_kernel" ]]; then
