@@ -46,7 +46,7 @@ log_pipe_level() {
   local prefix_arg="${2:-}"
 
   # Return if verbosity level is not met.
-  test $verbose -lt $level && return 0
+  ((verbose < level)) && return 0
 
   # EPOCHREALTIME uses the locale's decimal separator; in non-C locales (e.g.
   # de_DE.UTF-8 uses ','), the %%.* / ##.* expansions would not split and the
@@ -296,7 +296,7 @@ node_ssh_no_op() {
   local node=${1?}
   local cmd=${2?}
   shift 2
-  if [[ "$dry_run" = true ]]; then
+  if [[ "$dry_run" == true ]]; then
     log_prefix "NO-OP" log_prefix "$node" log_warning " Not running '$cmd'"
     return 0
   fi
@@ -1041,9 +1041,9 @@ process_args() {
     shift
   done
 
-  test $verbose -ge 5 && ssh_options+=("-v")
-  test $verbose -ge 6 && set -x
-  test $verbose -ge 7 && ssh_options+=("-v")
+  ((verbose >= 5)) && ssh_options+=("-v")
+  ((verbose >= 6)) && set -x
+  ((verbose >= 7)) && ssh_options+=("-v")
 
   ssh_options+=(-l "$ssh_user")
   [[ "$ssh_key_auth_only" == true ]] && ssh_options+=(-o "PasswordAuthentication=no")
