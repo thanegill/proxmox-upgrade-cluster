@@ -10,7 +10,7 @@ Describe 'wait_all'
   End
 
   It 'returns exit code 1 when one job fails' do
-    verbose=1
+    verbose=2  # per-job "Job Error" result line is level 2
     fail_job() { [[ "$1" == "b" ]] && return 1; return 0; }
     fail_array=("a" "b" "c")
 
@@ -20,7 +20,7 @@ Describe 'wait_all'
   End
 
   It 'returns exit code equal to number of failed jobs' do
-    verbose=1
+    verbose=2  # per-job "Job Error" result line is level 2
     always_fail() { return 1; }
     fail_array=("a" "b" "c")
 
@@ -46,7 +46,7 @@ Describe 'wait_all'
   End
 
   It 'returns exit code 1 for single failing element' do
-    verbose=1
+    verbose=2  # per-job "Job Error" result line is level 2
     single_fail() { return 1; }
     single_array=("x")
 
@@ -73,7 +73,7 @@ Describe 'wait_all'
     }
 
     It 'collects the args of failed jobs into the 3rd-arg array, in input order' do
-      verbose=1
+      verbose=2  # per-job "Job Error" result line is level 2
       fail_ac() { [[ "$1" == "b" ]] && return 0; return 1; }
       arr=("a" "b" "c")
 

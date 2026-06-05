@@ -225,9 +225,9 @@ wait_all() {
     if [[ $cmd_exit -gt 0 ]]; then
       ((failed_count += 1))
       failed_args+=("$arg")
-      log_prefix "$pid" log_prefix "${FUNCNAME[0]}" log_level 1 "Job Error: \`$cmd $arg\` exit: $cmd_exit"
+      log_prefix "$pid" log_prefix "${FUNCNAME[0]}" log_level 2 "Job Error: \`$cmd $arg\` exit: $cmd_exit"
     else
-      log_prefix "$pid" log_prefix "${FUNCNAME[0]}" log_level 1 "Job succeeded: \`$cmd $arg\` exit: $cmd_exit"
+      log_prefix "$pid" log_prefix "${FUNCNAME[0]}" log_level 2 "Job succeeded: \`$cmd $arg\` exit: $cmd_exit"
       succeeded_args+=("$arg")
     fi
   done
@@ -500,7 +500,7 @@ node_not_running_task() {
   task_count=$(node_number_of_running_tasks "$node")
   log_prefix "${FUNCNAME[0]}" log_prefix "$node" log_level 2 "Task Count: $task_count"
   if ((task_count > 0)); then
-    log_prefix "$node" log_level 0 "Running a task. Task Count: $task_count"
+    log_prefix "$node" log_level 1 "Running a task. Task Count: $task_count"
     return 1
   fi
   return 0
