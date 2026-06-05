@@ -717,6 +717,20 @@ node_post_upgrade() {
   node_ssh_no_op "$node" "DEBIAN_FRONTEND=noninteractive apt-get autoremove -y && apt-get autoclean -y" | log_pipe_level 0 "[$node][apt]"
 }
 
+warn_if_left_in_maintenance() {
+  # ERR-trap handler for node_run_update_sequence: when the upgrade aborts with
+  # the node still in HA maintenance mode, warn the operator how to clear it
+  # manually. No automatic recovery — the upstream failure must be investigated
+  # first. Reads its node and in-maintenance flag from the trap's call site.
+  local node=${1?}
+  local in_maintenance=${2?}
+  [[ "$in_maintenance" == true ]] || return 0
+
+  log_prefix "$node" log_warning "Upgrade aborted while node may still be in \
+maintenance mode. Clear manually after investigation: ha-manager crm-command \
+node-maintenance disable <hostname>"
+}
+
 node_run_update_sequence() {
   local node=${1?}
   local in_maintenance=false
@@ -748,10 +762,9 @@ node_run_update_sequence() {
   # The "does not enable errtrace" test in spec/upgrade_sequence_spec.sh
   # pins this contract: changing the function to `set -E` would re-introduce
   # the spurious-warning regression.
-  # shellcheck disable=SC2064 # $node is intentionally expanded at trap-install
-  trap "if [[ \"\$in_maintenance\" == true ]]; then
-    log_prefix '$node' log_warning \"Upgrade aborted while node may still be in maintenance mode. Clear manually after investigation: ha-manager crm-command node-maintenance disable <hostname>\"
-  fi" ERR
+  # Single-quoted so $node/$in_maintenance are read when the trap fires (live),
+  # not at install time.
+  trap 'warn_if_left_in_maintenance "$node" "$in_maintenance"' ERR
 
   log_prefix "$node" log_success "Starting upgrade."
 
