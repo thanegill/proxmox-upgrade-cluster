@@ -15,7 +15,14 @@ Describe 'node_set_maintenance'
     use_maintenance_mode=true
     dry_run=false
     node_ssh_no_op() { echo 'maintenance set'; }
-    node_get_mode() { echo 'maintenance'; }  # already in target
+    # Not in target on the first poll, reached on the second, so the wait logs
+    # one iteration rather than taking the early silent exit. The predicate is
+    # called directly (not via command substitution), so a counter persists.
+    _reached_polls=0
+    node_reached_mode() {
+      _reached_polls=$((_reached_polls + 1))
+      [[ $_reached_polls -ge 2 ]]
+    }
     wait_sleep() { :; }
 
     When call node_set_maintenance 'pve1' enable
@@ -46,17 +53,21 @@ Describe 'node_set_maintenance'
     The error should include 'Not setting maintenance mode'
   End
 
-  It 'disables maintenance: waits for service, ssh_no_op, then mode wait' do
+  It 'disables maintenance: brings up service, runs ssh, then waits for online mode' do
     use_maintenance_mode=true
     dry_run=false
-    node_wait_until_pve_service_running() { echo 'service running'; }
+    node_service_running() { return 0; }  # HA LRM already up -> silent service wait
     node_ssh_no_op() { echo 'maintenance disabled'; }
-    node_get_mode() { echo 'online'; }  # already in target
+    _reached_polls=0
+    node_reached_mode() {
+      _reached_polls=$((_reached_polls + 1))
+      [[ $_reached_polls -ge 2 ]]
+    }
     wait_sleep() { :; }
 
     When call node_set_maintenance 'pve1' disable
     The status should be success
-    The output should include 'service running'
+    The error should include 'maintenance disabled'
     The error should include 'Disabling maintenance mode'
     The error should include "Reached target mode 'online'"
   End
@@ -64,14 +75,13 @@ Describe 'node_set_maintenance'
   It 'skips the mode wait when dry_run is true (disable)' do
     use_maintenance_mode=true
     dry_run=true
-    node_wait_until_pve_service_running() { echo 'service running'; }
+    node_service_running() { return 0; }  # HA LRM already up -> silent service wait
     node_ssh_no_op() { echo 'maintenance disabled'; }
-    node_get_mode() { echo 'online'; }  # if wrongly polled, completes fast
     wait_sleep() { :; }
 
     When call node_set_maintenance 'pve1' disable
     The status should be success
-    The output should include 'service running'
+    The error should include 'maintenance disabled'
     The error should include 'Disabling maintenance mode'
     The error should not include 'Waiting until node enters'
   End
@@ -451,18 +461,6 @@ Describe 'node_run_update_sequence'
   End
 End
 
-Describe 'node_wait_until_pve_service_running'
-  Include proxmox-upgrade-cluster.sh
-
-  It 'returns success when service is already running' do
-    node_service_running() { return 0; }
-    wait_sleep() { return 0; }
-
-    When call node_wait_until_pve_service_running 'pve1' 'pve-ha-lrm'
-    The status should be success
-  End
-End
-
 Describe 'node_wait_until_no_running_guests'
   Include proxmox-upgrade-cluster.sh
 
@@ -476,15 +474,15 @@ Describe 'node_wait_until_no_running_guests'
     The error should include "Not checking for running guests"
   End
 
-  It 'returns success when guest count is 0' do
+  It 'returns success silently when no guests are running' do
     allow_running_guests=false
     node_get_running_guest_count() { echo '0'; }
     wait_sleep() { return 0; }
 
     When call node_wait_until_no_running_guests 'pve1'
     The status should be success
-    The error should include "Waiting until all guests are migrated"
-    The error should include "Reached zero running guests"
+    The error should not include "Waiting until all guests are migrated"
+    The error should not include "Reached zero running guests"
   End
 End
 
@@ -501,15 +499,15 @@ Describe 'node_wait_all_tasks_completed'
     The error should include "Not checking for running tasks"
   End
 
-  It 'returns success when task count is 0' do
+  It 'returns success silently when no tasks are running' do
     allow_running_tasks=false
     node_number_of_running_tasks() { echo '0'; }
     wait_sleep() { return 0; }
 
     When call node_wait_all_tasks_completed 'pve1'
     The status should be success
-    The error should include "Waiting until all cluster tasks have completed"
-    The error should include "Cluster reached zero running tasks"
+    The error should not include "Waiting until all cluster tasks have completed"
+    The error should not include "Cluster reached zero running tasks"
   End
 End
 
@@ -533,8 +531,9 @@ Describe 'node_cluster_all_online'
   End
 
   # The pre-flight status/success wording lives at the run_update_sequence call
-  # site; this exercises that inlined construct end to end.
-  It 'pre-flight wait logs its status and success lines once the cluster is online' do
+  # site; with every node already online there is nothing to wait for, so the
+  # wait takes the early silent exit.
+  It 'pre-flight wait exits silently when the cluster is already online' do
     node_get_offline_count() { echo '0'; }
     wait_sleep() { :; }
 
@@ -543,23 +542,23 @@ Describe 'node_cluster_all_online'
       "All cluster nodes are online." \
       node_cluster_all_online 'pve1'
     The status should be success
-    The error should include "Checking that no cluster nodes are currently offline"
-    The error should include "All cluster nodes are online"
+    The error should not include "Checking that no cluster nodes are currently offline"
+    The error should not include "All cluster nodes are online"
   End
 End
 
 Describe 'node_wait_with_progress'
   Include proxmox-upgrade-cluster.sh
 
-  It 'logs status + success and does not loop when the predicate is already done' do
+  It 'exits early without logging when the predicate is already satisfied' do
     verbose=1
     already_done() { return 0; }
     wait_sleep() { echo 'SLEPT' >&2; }  # sentinel: must not be called
 
     When call node_wait_with_progress 'pve1' 1s 'Waiting for thing...' 'Thing ready.' already_done
     The status should be success
-    The error should include 'Waiting for thing...'
-    The error should include 'Thing ready.'
+    The error should not include 'Waiting for thing...'
+    The error should not include 'Thing ready.'
     The error should not include 'SLEPT'
   End
 

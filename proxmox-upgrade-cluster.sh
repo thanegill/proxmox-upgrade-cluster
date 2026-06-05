@@ -154,6 +154,12 @@ node_wait_with_progress() {
   local success_msg=${4?}
   shift 4
 
+  # Exit early without logging when the predicate is already satisfied — there
+  # is nothing to wait for, so emit no status or success line.
+  if "$@"; then
+    return 0
+  fi
+
   log_prefix "$node" log_status "$status_msg"
   until "$@"; do
     log_progress "$interval"
@@ -458,21 +464,6 @@ node_service_running() {
     | jq -r '.state')" == "running" ]]
 }
 
-node_wait_until_pve_service_running() {
-  local node=${1?}
-  local service=${2?}
-
-  # Exit early without logging if running.
-  if node_service_running "$node" "$service"; then
-    return 0
-  fi
-
-  node_wait_with_progress "$node" 1s \
-    "Waiting until service '$service' is running..." \
-    "Service '$service' started." \
-    node_service_running "$node" "$service"
-}
-
 node_reached_mode() {
   # Polling predicate for the node_set_maintenance mode wait: 0 once in target
   # mode, otherwise log the current/target mode and return non-zero (keep
@@ -579,7 +570,10 @@ node_set_maintenance() {
     log_prefix "$node" log_status "Disabling maintenance mode."
     target_mode="online"
     # Exiting maintenance needs the HA LRM service up before we can disable it.
-    node_wait_until_pve_service_running "$node" "pve-ha-lrm"
+    node_wait_with_progress "$node" 1s \
+      "Waiting until service 'pve-ha-lrm' is running..." \
+      "Service 'pve-ha-lrm' started." \
+      node_service_running "$node" "pve-ha-lrm"
   fi
 
   # shellcheck disable=SC2016 # $(hostname) is supposed to run in remote host.
@@ -636,7 +630,7 @@ node_needs_reboot() {
   fi
 
   if [[ "$expected_kernel" != "$booted_kernel" ]]; then
-    log_prefix "$node" log_success "Reboot required."
+    log_prefix "$node" log_warning "Reboot required."
     return 0
   fi
   log_prefix "$node" log_success "No reboot required."
