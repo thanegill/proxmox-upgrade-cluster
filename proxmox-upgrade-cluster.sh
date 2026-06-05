@@ -91,7 +91,7 @@ log_pipe_level() {
 log_level() {
   local -i level=${1?}
   shift
-  echo -e "$@" | log_pipe_level "$level"
+  printf '%b\n' "$*" | log_pipe_level "$level"
 }
 
 log_prefix() {
@@ -130,7 +130,7 @@ log_progress() {
   local duration=${1?}
   # Only log progress when no verbosity
   if [[ $verbose -eq 0 ]]; then
-    echo -n '.' | log_output
+    printf '.' | log_output
   fi
   wait_sleep "$duration"
 }
@@ -346,8 +346,8 @@ is_node_proxmox() {
 node_has_updates() {
   local node=${1?}
   local updates
-  updates="$(node_ssh "$node" 'DEBIAN_FRONTEND=noninteractive apt-get -qq -s upgrade')"
-  echo "$updates" | log_pipe_level 2 "[$node][apt]"
+  updates="$(node_ssh "$node" 'DEBIAN_FRONTEND=noninteractive apt-get -qq -s upgrade' \
+    | tee >(log_pipe_level 2 "[$node][apt]"))"
   if [[ -n "$updates" ]]; then
     log_prefix "$node" log_success "Updates available."
     return 0
@@ -394,7 +394,7 @@ node_get_running_count() {
   count="$(node_pvesh "$node" "nodes/\$(hostname)/$type" \
     | jq -rc '[.[] | select(.status != "stopped")] | length')"
   log_prefix "$node" log_level 2 "Running ${type^^} count: $count"
-  echo "$count"
+  printf '%s\n' "$count"
 }
 
 node_get_running_guest_count() {
@@ -406,7 +406,7 @@ node_get_running_guest_count() {
   total=$((lxc_count + qemu_count))
 
   log_prefix "$node" log_level 1 "Number of guests running: $total"
-  echo "$total"
+  printf '%s\n' "$total"
 }
 
 sort_nodes_by_guest_count() {
@@ -440,7 +440,7 @@ node_get_offline_count() {
   local node=${1?}
   local -a offline
   mapfile -t offline < <(node_get_offline_nodes "$node")
-  echo "${#offline[@]}"
+  printf '%s\n' "${#offline[@]}"
 }
 
 node_get_mode() {
