@@ -674,8 +674,8 @@ node_reboot() {
   # node is shutting down. Without these the dmesg -W follower can block until
   # the kernel's default TCP timeout, which delays the come-back-up poll loop.
   local -a reboot_ssh_opts=(-oConnectTimeout=10 -oServerAliveInterval=5 -oServerAliveCountMax=2)
-  node_ssh_no_op "$node" 'reboot' "${reboot_ssh_opts[@]}" 2>&1 | log_pipe_level 3 "[$node]    " && true
-  node_ssh_no_op "$node" 'dmesg -W' "${reboot_ssh_opts[@]}" 2>&1 | log_pipe_level 0 "[$node]    " && true
+  node_ssh_no_op "$node" 'reboot' "${reboot_ssh_opts[@]}" 2>&1 | log_pipe_level 3 "[$node]    " || true
+  node_ssh_no_op "$node" 'dmesg -W' "${reboot_ssh_opts[@]}" 2>&1 | log_pipe_level 0 "[$node]    " || true
 
   log_prefix "$node" log_status "Waiting up to ${reboot_timeout}s for node to come back up..."
   SECONDS=0
