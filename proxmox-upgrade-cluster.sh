@@ -629,22 +629,19 @@ node_needs_reboot() {
       | sed -e 's%/boot/vmlinuz-%%;s%/ROOT/pve-1@%%')
   fi
 
-  if [[ "$expected_kernel" != "$booted_kernel" ]]; then
-    log_prefix "$node" log_warning "Reboot required."
-    return 0
-  fi
-  log_prefix "$node" log_success "No reboot required."
-  return 1
+  log_prefix "$node" log_level 2 "Booted kernel: $booted_kernel"
+  log_prefix "$node" log_level 2 "Expected kernel: $expected_kernel"
+
+  [[ "$expected_kernel" != "$booted_kernel" ]]
 }
 
 node_reboot() {
   local node=${1?}
 
   if [[ "$skip_reboot" == true ]]; then
+    log_prefix "$node" log_warning "Skipping reboot per --skip-reboot."
     if node_needs_reboot "$node"; then
-      log_prefix "$node" log_warning "Skipping reboot per --skip-reboot. Node WILL need a reboot to pick up the new kernel."
-    else
-      log_prefix "$node" log_warning "Skipping reboot per --skip-reboot."
+      log_prefix "$node" log_warning "Node WILL need a reboot to pick up the new kernel."
     fi
     return 0
   fi

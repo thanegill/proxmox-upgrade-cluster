@@ -548,9 +548,9 @@ Describe 'node_needs_reboot'
   Include proxmox-upgrade-cluster.sh
 
   # These kernel-detection tests are about the success/failure result, not
-  # the log line. verbose=-1 suppresses the level-0 "Reboot required." /
-  # "No reboot required." output (asserted separately in 'pass/fail logging'
-  # below) so it doesn't trip the stray-stderr warning.
+  # the log lines. verbose=-1 suppresses node_needs_reboot's debug kernel
+  # logs (level 2, asserted separately in 'kernel debug logging' below) so
+  # they don't trip the stray-stderr warning.
   Before 'verbose=-1'
 
   # Helpers install a `node_ssh` mock parameterised on running kernel + the
@@ -685,25 +685,27 @@ Describe 'node_needs_reboot'
     End
   End
 
-  Describe 'pass/fail logging' do
-    It 'logs "Reboot required." when the kernel changed' do
-      verbose=0  # override the block-level Before 'verbose=-1'
+  Describe 'kernel debug logging' do
+    It 'logs the booted and expected kernels when they differ (needs reboot)' do
+      verbose=2  # override the block-level Before 'verbose=-1'
       make_pbt_node_ssh '7.0.2-2-pve' \
         'Manually selected kernels:' 'None.' '' \
         'Automatically selected kernels:' '7.0.2-2-pve' '7.0.2-3-pve'
       When call node_needs_reboot 'pve1'
       The status should be success
-      The error should include 'Reboot required.'
+      The error should include 'Booted kernel: 7.0.2-2-pve'
+      The error should include 'Expected kernel: 7.0.2-3-pve'
     End
 
-    It 'logs "No reboot required." when the kernel is current' do
-      verbose=0  # override the block-level Before 'verbose=-1'
+    It 'logs the booted and expected kernels when they match (no reboot)' do
+      verbose=2  # override the block-level Before 'verbose=-1'
       make_pbt_node_ssh '7.0.2-3-pve' \
         'Manually selected kernels:' 'None.' '' \
         'Automatically selected kernels:' '7.0.2-2-pve' '7.0.2-3-pve'
       When call node_needs_reboot 'pve1'
       The status should be failure
-      The error should include 'No reboot required.'
+      The error should include 'Booted kernel: 7.0.2-3-pve'
+      The error should include 'Expected kernel: 7.0.2-3-pve'
     End
   End
 End

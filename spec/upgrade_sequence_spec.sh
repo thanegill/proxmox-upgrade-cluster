@@ -644,10 +644,9 @@ End
 Describe 'filter_nodes (reboot: node_needs_reboot)'
   Include proxmox-upgrade-cluster.sh
 
-  # node_needs_reboot is stubbed here, so its own "Reboot required." /
-  # "No reboot required." logging (covered in node_functions_spec.sh) does
-  # not appear — these tests assert the filter's emission/order + the
-  # "Removed from reboot sequence." line.
+  # node_needs_reboot is stubbed here, so its own kernel debug logging
+  # (covered in node_functions_spec.sh) does not appear — these tests assert
+  # the filter's emission/order + the "Removed from reboot sequence." line.
 
   It 'emits nodes that need a reboot, one per line, in input order' do
     node_needs_reboot() {
