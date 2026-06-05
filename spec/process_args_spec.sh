@@ -85,6 +85,7 @@ Describe 'process_args missing-value rejections through error_on_no_arg'
     --ssh-user
     --ssh-opt
     --pkg-reinstall
+    --ignore-task-type
     --reboot-timeout
   End
 
@@ -245,6 +246,25 @@ Describe 'process_args --pkg-reinstall'
     The line 1 of output should eq '[pve-firmware]'
     The line 2 of output should eq '[pve-kernel]'
     The lines of output should eq 2
+  End
+End
+
+Describe 'process_args --ignore-task-type'
+  Include proxmox-upgrade-cluster.sh
+
+  It 'appends to the default ignored_task_types (vncproxy)' do
+    When call capture_array ignored_task_types '--cluster-node' 'pve1' '--ignore-task-type' 'imgcopy'
+    The line 1 of output should eq '[vncproxy]'
+    The line 2 of output should eq '[imgcopy]'
+    The lines of output should eq 2
+  End
+
+  It 'accumulates multiple --ignore-task-type flags in order' do
+    When call capture_array ignored_task_types '--cluster-node' 'pve1' '--ignore-task-type' 'imgcopy' '--ignore-task-type' 'download'
+    The line 1 of output should eq '[vncproxy]'
+    The line 2 of output should eq '[imgcopy]'
+    The line 3 of output should eq '[download]'
+    The lines of output should eq 3
   End
 End
 

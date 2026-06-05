@@ -79,6 +79,14 @@ Describe 'proxmox-upgrade-cluster.sh'
     End
   End
 
+  Describe 'ignored_task_types default' do
+    It 'defaults to a single vncproxy entry' do
+      report() { echo "${#ignored_task_types[@]}:${ignored_task_types[*]}"; }
+      When call report
+      The output should eq '1:vncproxy'
+    End
+  End
+
   Describe 'wait_sleep' do
     It 'calls sleep with default 1 second' do
       test_wait_sleep() {

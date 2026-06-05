@@ -84,6 +84,10 @@ OPTIONS
         Package(s) on the hosts to reinstall with 'apt-get reinstall' post
         upgrade. Can be passed multiple times. Defaults to none.
 
+    --ignore-task-type TYPE
+        Task type(s) to ignore when checking for running cluster tasks.
+        Can be passed multiple times. Default of 'vncproxy'.
+
     --force-upgrade
         Force all nodes to upgrade, and not only those with available upgrades.
 

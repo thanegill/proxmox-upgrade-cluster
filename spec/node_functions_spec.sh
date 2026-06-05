@@ -181,8 +181,8 @@ End
 Describe 'node_number_of_running_tasks'
   Include proxmox-upgrade-cluster.sh
 
-  It 'returns task count' do
-    node_pvesh() { echo '[{"task":"backup"},{"task":"resize"}]'; }
+  It 'counts active tasks' do
+    node_pvesh() { echo '[{"type":"qmstart"},{"type":"vzdump"}]'; }
 
     When call node_number_of_running_tasks 'pve1'
     The output should eq '2'
@@ -193,6 +193,28 @@ Describe 'node_number_of_running_tasks'
 
     When call node_number_of_running_tasks 'pve1'
     The output should eq '0'
+  End
+
+  It 'ignores the default vncproxy type' do
+    node_pvesh() { echo '[{"type":"vncproxy"},{"type":"qmstart"}]'; }
+
+    When call node_number_of_running_tasks 'pve1'
+    The output should eq '1'
+  End
+
+  It 'returns 0 when every active task is an ignored type' do
+    node_pvesh() { echo '[{"type":"vncproxy"}]'; }
+
+    When call node_number_of_running_tasks 'pve1'
+    The output should eq '0'
+  End
+
+  It 'honors additional ignored task types' do
+    ignored_task_types=("vncproxy" "imgcopy")
+    node_pvesh() { echo '[{"type":"vncproxy"},{"type":"imgcopy"},{"type":"qmstart"}]'; }
+
+    When call node_number_of_running_tasks 'pve1'
+    The output should eq '1'
   End
 End
 

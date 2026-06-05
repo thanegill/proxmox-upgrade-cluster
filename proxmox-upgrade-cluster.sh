@@ -28,6 +28,9 @@ declare -a pkgs_reinstall=()
 declare -a cluster_nodes=()
 declare -a upgrade_nodes=()
 declare -a ssh_options=()
+# Task types ignored when counting running cluster tasks (e.g. vncproxy stays
+# active while a noVNC console is open). Extend with --ignore-task-type.
+declare -a ignored_task_types=("vncproxy")
 
 log_output() {
   cat - >&2
@@ -503,7 +506,8 @@ node_wait_until_no_running_guests() {
 node_number_of_running_tasks() {
   local node=${1?}
   # shellcheck disable=SC2016 # $(hostname) is supposed to run in remote host.
-  node_pvesh "$node" 'nodes/$(hostname)/tasks' '--source=active' | jq -rc '.|length'
+  node_pvesh "$node" 'nodes/$(hostname)/tasks' '--source=active' |
+    jq -rc '[.[] | select(.type | IN($ARGS.positional[]) | not)] | length' --args "${ignored_task_types[@]}"
 }
 
 node_not_running_task() {
@@ -822,6 +826,10 @@ OPTIONS
         Package(s) on the hosts to reinstall with 'apt-get reinstall' post
         upgrade. Can be passed multiple times. Defaults to none.
 
+    --ignore-task-type TYPE
+        Task type(s) to ignore when checking for running cluster tasks.
+        Can be passed multiple times. Default of '${ignored_task_types[*]}'.
+
     --force-upgrade
         Force all nodes to upgrade, and not only those with available upgrades.
 
@@ -964,6 +972,11 @@ process_args() {
         error_on_no_arg "${1?}" "${2:-}"
         shift
         pkgs_reinstall+=("$1")
+        ;;
+      --ignore-task-type)
+        error_on_no_arg "${1?}" "${2:-}"
+        shift
+        ignored_task_types+=("$1")
         ;;
       --force-upgrade)
         force_upgrade=true
