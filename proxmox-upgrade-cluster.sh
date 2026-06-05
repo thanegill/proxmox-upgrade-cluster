@@ -76,13 +76,13 @@ log_pipe_level() {
       local rt_sec="${EPOCHREALTIME%%.*}"
       local rt_usec="${EPOCHREALTIME##*.}"
       [ -z "$line" ] && continue
-      printf "[%(%F %T)T.%s]$prefix %s\n" "$rt_sec" "$rt_usec" "$line" | log_output
+      printf '[%(%F %T)T.%s]%s %s\n' "$rt_sec" "$rt_usec" "$prefix" "$line" | log_output
     done
   else
     while IFS= read -r line; do
       local rt_sec="${EPOCHREALTIME%%.*}"
       [ -z "$line" ] && continue
-      printf "[%(%F %T)T]$prefix %s\n" "$rt_sec" "$line" | log_output
+      printf '[%(%F %T)T]%s %s\n' "$rt_sec" "$prefix" "$line" | log_output
     done
   fi
 

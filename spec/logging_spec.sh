@@ -210,6 +210,15 @@ Describe 'Logging functions'
       The error should include 'test data'
     End
 
+    It 'treats a percent in the prefix as a literal, not a printf conversion' do
+      # Regression: the prefix used to be interpolated into the printf format
+      # string, so a '%' in it consumed the message as a bogus conversion.
+      test_pct() { echo "real message" | log_pipe_level 0 "[10%done]"; }
+      When call test_pct
+      The error should include '10%done'
+      The error should include 'real message'
+    End
+
     It 'uses fallback level number when verbose level not in map' do
       test_fallback() { verbose=9; echo "fallback" | log_pipe_level 9; }
       When call test_fallback
