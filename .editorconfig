@@ -1,0 +1,25 @@
+# EditorConfig (https://editorconfig.org). Also consumed by shfmt as its source
+# of formatting options — but only when shfmt is invoked with NO parser/printer
+# flags (e.g. -i, -ci, -bn). Passing any such flag makes shfmt ignore this file
+# entirely, so the project's shfmt commands deliberately pass only -d / -w.
+root = true
+
+[*.sh]
+indent_style = space
+indent_size = 2
+
+# -ci: indent case patterns under their `case`.
+switch_case_indent = true
+
+# -bn: binary operators (|, &&, ||) begin the continuation line. A wrapped pipe
+# is formatted as
+#     cmd \
+#       | jq …
+# rather than with the operator trailing the previous line.
+binary_next_line = true
+
+# spec/*.sh use the ShellSpec DSL (Describe/It/When/The/End), which shfmt would
+# mangle. They are never passed to shfmt; this guards against `shfmt .`-style
+# directory recursion picking them up.
+[spec/**]
+ignore = true

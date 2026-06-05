@@ -8,17 +8,22 @@ nix develop -c shellspec spec/file_name.sh  # Specific test file
 nix develop -c shellspec --dry-run          # List examples without running
 nix develop -c shellspec --random=specfiles # Verify order-independence
 nix develop -c shellcheck proxmox-upgrade-cluster.sh  # Static analysis
-nix develop -c shfmt -d -i 2 -ci proxmox-upgrade-cluster.sh  # Format check
-nix develop -c shfmt -w -i 2 -ci proxmox-upgrade-cluster.sh  # Apply formatting
+nix develop -c shfmt -d proxmox-upgrade-cluster.sh  # Format check
+nix develop -c shfmt -w proxmox-upgrade-cluster.sh  # Apply formatting
 nix build .#default                         # Build the script via flake
 ```
 
-`shfmt` flags: `-i 2` (2-space indent), `-ci` (indent case patterns under
-their `case`). Same flags are wired into `nix build`'s `checkPhase` so a
-PR that diverges from the format won't build. The flags are intentionally
-NOT applied to `spec/*.sh` — those files use the ShellSpec DSL
-(`Describe`/`It`/`When`/`The`/`End`) which shfmt doesn't recognise and
-would mangle.
+`shfmt` reads its options from `.editorconfig`: `indent_size = 2` (2-space
+indent), `switch_case_indent` (indent case patterns under their `case`), and
+`binary_next_line` (a wrapped pipe/`&&`/`||` starts the continuation line, e.g.
+`cmd \` then `| jq …`). **Do not pass `-i`/`-ci`/`-bn` (or any other
+parser/printer flag)** — shfmt ignores `.editorconfig` entirely when any such
+flag is given, so the flagged form would silently use different rules. The same
+flag-free `shfmt -d` is wired into `nix build`'s `checkPhase` so a PR that
+diverges from the format won't build. `spec/**` is marked `ignore = true` in
+`.editorconfig` and never passed to shfmt — those files use the ShellSpec DSL
+(`Describe`/`It`/`When`/`The`/`End`) which shfmt doesn't recognise and would
+mangle.
 
 ### Coverage (Linux only)
 

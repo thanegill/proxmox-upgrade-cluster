@@ -49,8 +49,11 @@
 
               checkPhase = ''
                 # Format check first — a malformed script wouldn't behave the
-                # way the tests expect anyway, so fail fast.
-                shfmt -d -i 2 -ci $src/proxmox-upgrade-cluster.sh
+                # way the tests expect anyway, so fail fast. No -i/-ci/-bn flags:
+                # those would make shfmt ignore .editorconfig, which is the
+                # source of truth for formatting (indent, case-indent,
+                # binary-next-line).
+                shfmt -d $src/proxmox-upgrade-cluster.sh
                 shellspec -c $src --format=progress
               '';
             };
