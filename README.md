@@ -86,7 +86,7 @@ OPTIONS
 
     --ignore-task-type TYPE
         Task type(s) to ignore when checking for running cluster tasks.
-        Can be passed multiple times. Default of 'vncproxy'.
+        Can be passed multiple times. Default of 'vncproxy termproxy spiceproxy'.
 
     --force-upgrade
         Force all nodes to upgrade, and not only those with available upgrades.

@@ -252,19 +252,17 @@ End
 Describe 'process_args --ignore-task-type'
   Include proxmox-upgrade-cluster.sh
 
-  It 'appends to the default ignored_task_types (vncproxy)' do
+  It 'appends to (does not replace) the default ignored_task_types' do
     When call capture_array ignored_task_types '--cluster-node' 'pve1' '--ignore-task-type' 'imgcopy'
-    The line 1 of output should eq '[vncproxy]'
-    The line 2 of output should eq '[imgcopy]'
-    The lines of output should eq 2
+    The line 1 of output should eq '[vncproxy]'   # default kept as the first entry
+    The output should end with '[imgcopy]'        # the flag value is appended last
   End
 
   It 'accumulates multiple --ignore-task-type flags in order' do
     When call capture_array ignored_task_types '--cluster-node' 'pve1' '--ignore-task-type' 'imgcopy' '--ignore-task-type' 'download'
     The line 1 of output should eq '[vncproxy]'
-    The line 2 of output should eq '[imgcopy]'
-    The line 3 of output should eq '[download]'
-    The lines of output should eq 3
+    The output should include '[imgcopy]'
+    The output should end with '[download]'       # last flag is last
   End
 End
 

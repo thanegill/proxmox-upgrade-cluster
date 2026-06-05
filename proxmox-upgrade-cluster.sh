@@ -28,9 +28,7 @@ declare -a pkgs_reinstall=()
 declare -a cluster_nodes=()
 declare -a upgrade_nodes=()
 declare -a ssh_options=()
-# Task types ignored when counting running cluster tasks (e.g. vncproxy stays
-# active while a noVNC console is open). Extend with --ignore-task-type.
-declare -a ignored_task_types=("vncproxy")
+declare -a ignored_task_types=("vncproxy" "termproxy" "spiceproxy")
 
 log_output() {
   cat - >&2

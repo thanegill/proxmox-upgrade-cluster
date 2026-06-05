@@ -80,10 +80,10 @@ Describe 'proxmox-upgrade-cluster.sh'
   End
 
   Describe 'ignored_task_types default' do
-    It 'defaults to a single vncproxy entry' do
+    It 'defaults to the console/terminal proxy types' do
       report() { echo "${#ignored_task_types[@]}:${ignored_task_types[*]}"; }
       When call report
-      The output should eq '1:vncproxy'
+      The output should eq '3:vncproxy termproxy spiceproxy'
     End
   End
 
