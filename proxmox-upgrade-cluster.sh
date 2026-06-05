@@ -203,6 +203,7 @@ wait_all() {
   local -a job_pids=()
   local -a job_args=()
 
+  local arg
   for arg in "${_args[@]}"; do
     (
       # Inside the subshell BASHPID matches the parent's $!, so log lines
@@ -224,7 +225,7 @@ wait_all() {
   local i
   for i in "${!job_pids[@]}"; do
     local pid="${job_pids[$i]}"
-    local arg="${job_args[$i]}"
+    arg="${job_args[$i]}"
     wait "$pid"
     local cmd_exit=$?
     log_prefix "$pid" log_prefix "${FUNCNAME[0]}" log_level 4 "Finished Job: \`$cmd $arg\` exit: $cmd_exit"

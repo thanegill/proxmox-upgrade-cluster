@@ -9,6 +9,21 @@ Describe 'wait_all'
     The status should equal 0
   End
 
+  It 'does not leak its loop variable into the caller scope' do
+    succeed() { return 0; }
+    # The driver must run in the same shell as the assertion so a leaked global
+    # is observable; it never declares `arg` local, so a non-local write inside
+    # wait_all would surface here.
+    leak_check() {
+      unset arg
+      local -a items=("x" "y")
+      wait_all succeed items >/dev/null 2>&1
+      [[ -z "${arg+set}" ]] && echo 'no leak' || echo "leaked: $arg"
+    }
+    When call leak_check
+    The output should eq 'no leak'
+  End
+
   It 'returns exit code 1 when one job fails' do
     verbose=2  # per-job "Job Error" result line is level 2
     fail_job() { [[ "$1" == "b" ]] && return 1; return 0; }
