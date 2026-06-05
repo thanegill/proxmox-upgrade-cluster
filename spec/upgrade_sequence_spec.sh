@@ -49,7 +49,7 @@ Describe 'node_set_maintenance'
   It 'disables maintenance: waits for service, ssh_no_op, then mode wait' do
     use_maintenance_mode=true
     dry_run=false
-    node_wait_until_service_running() { echo 'service running'; }
+    node_wait_until_pve_service_running() { echo 'service running'; }
     node_ssh_no_op() { echo 'maintenance disabled'; }
     node_get_mode() { echo 'online'; }  # already in target
     wait_sleep() { :; }
@@ -64,7 +64,7 @@ Describe 'node_set_maintenance'
   It 'skips the mode wait when dry_run is true (disable)' do
     use_maintenance_mode=true
     dry_run=true
-    node_wait_until_service_running() { echo 'service running'; }
+    node_wait_until_pve_service_running() { echo 'service running'; }
     node_ssh_no_op() { echo 'maintenance disabled'; }
     node_get_mode() { echo 'online'; }  # if wrongly polled, completes fast
     wait_sleep() { :; }
@@ -451,14 +451,14 @@ Describe 'node_run_update_sequence'
   End
 End
 
-Describe 'node_wait_until_service_running'
+Describe 'node_wait_until_pve_service_running'
   Include proxmox-upgrade-cluster.sh
 
   It 'returns success when service is already running' do
     node_service_running() { return 0; }
     wait_sleep() { return 0; }
 
-    When call node_wait_until_service_running 'pve1' 'pve-ha-lrm'
+    When call node_wait_until_pve_service_running 'pve1' 'pve-ha-lrm'
     The status should be success
   End
 End

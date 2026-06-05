@@ -451,10 +451,11 @@ node_get_mode() {
 node_service_running() {
   local node=${1?}
   local service=${2?}
-  [[ "$(node_ssh "$node" "systemctl is-active $service")" == "active" ]]
+  # shellcheck disable=SC2016 # $(hostname) is supposed to run on the remote host.
+  [[ "$(node_pvesh "$node" "nodes/\$(hostname)/services/$service/state" | jq -r '.state')" == "running" ]]
 }
 
-node_wait_until_service_running() {
+node_wait_until_pve_service_running() {
   local node=${1?}
   local service=${2?}
 
@@ -575,7 +576,7 @@ node_set_maintenance() {
     log_prefix "$node" log_status "Disabling maintenance mode."
     target_mode="online"
     # Exiting maintenance needs the HA LRM service up before we can disable it.
-    node_wait_until_service_running "$node" "pve-ha-lrm"
+    node_wait_until_pve_service_running "$node" "pve-ha-lrm"
   fi
 
   # shellcheck disable=SC2016 # $(hostname) is supposed to run in remote host.

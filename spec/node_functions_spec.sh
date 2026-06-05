@@ -334,15 +334,15 @@ End
 Describe 'node_service_running'
   Include proxmox-upgrade-cluster.sh
 
-  It 'returns success when service is active' do
-    node_ssh() { echo 'active'; }
+  It 'returns success when the service state is running' do
+    node_pvesh() { echo '{"name":"pve-ha-lrm","state":"running"}'; }
 
     When call node_service_running 'pve1' 'pve-ha-lrm'
     The status should be success
   End
 
-  It 'returns failure when service is not active' do
-    node_ssh() { echo 'inactive'; }
+  It 'returns failure when the service state is not running' do
+    node_pvesh() { echo '{"name":"pve-ha-lrm","state":"stopped"}'; }
 
     When call node_service_running 'pve1' 'pve-ha-lrm'
     The status should be failure
