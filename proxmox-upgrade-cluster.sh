@@ -328,11 +328,10 @@ is_node_up() {
 get_cluster_nodes() {
   # Emit one node per line so callers can read into an array via mapfile -t.
   local node=${1?}
-  if [[ "$cluster_node_use_ip" == true ]]; then
-    node_pvesh "$node" "cluster/status" | jq -r '.[] | select(.type == "node") | .ip'
-  else
-    node_pvesh "$node" "cluster/status" | jq -r '.[] | select(.type == "node") | .name'
-  fi
+  local field=name
+  [[ "$cluster_node_use_ip" == true ]] && field=ip
+  node_pvesh "$node" "cluster/status" \
+    | jq -r --arg field "$field" '.[] | select(.type == "node") | .[$field]'
 }
 
 is_node_proxmox() {
