@@ -572,3 +572,21 @@ spec/
 6. Always add stderr expectations for log output to avoid the "There was
    output to stderr but not found expectation" warning
 7. Run with `nix develop -c shellspec spec/your_file.sh`
+
+## Help text (usage() and README)
+
+`usage()` and the README OPTIONS section document the same flags and must stay
+in sync. Keep each entry terse and uniform with the surrounding options:
+
+- One short sentence of what the flag does — no parenthetical examples or extra
+  prose.
+- For repeatable flags, `Can be passed multiple times.` as its own sentence.
+- State the default as `Default of '<value>'.` (or `Defaults to none.`).
+
+The one deliberate difference between the two renderings:
+
+- **`usage()`** is an expanding `cat <<EOF` heredoc, so reference the backing
+  **variable** for a default — e.g. `Default of '${ignored_task_types[*]}'.` —
+  so the help reflects the live value.
+- **README** is static Markdown and can't interpolate, so mirror the same
+  wording with the **literal** default — e.g. `Default of 'vncproxy'.`
