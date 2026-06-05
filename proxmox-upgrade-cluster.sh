@@ -1011,6 +1011,13 @@ process_args() {
       --reboot-timeout)
         error_on_no_arg "${1?}" "${2:-}"
         shift
+        # Single-bracket numeric test on purpose: [[ -ge ]] arithmetic-evaluates
+        # its operands (so 'abc' becomes 0 and slips through), whereas [ ] parses
+        # a literal integer and fails on anything non-numeric. 2>/dev/null hides
+        # test's own "integer expression expected" so only our message shows.
+        if ! [ "$1" -ge 1 ] 2>/dev/null; then
+          error_exit_usage "--reboot-timeout requires a positive integer of seconds, got '$1'."
+        fi
         reboot_timeout="$1"
         ;;
       --verbose)

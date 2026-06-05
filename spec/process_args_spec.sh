@@ -290,6 +290,24 @@ Describe 'process_args --reboot-timeout'
     The variable reboot_timeout should eq 900
   End
 
+  It 'rejects a non-numeric value' do
+    When run process_args '--cluster-node' 'pve1' '--reboot-timeout' 'abc'
+    The status should be failure
+    The error should include "requires a positive integer"
+  End
+
+  It 'rejects a value with a non-numeric suffix' do
+    When run process_args '--cluster-node' 'pve1' '--reboot-timeout' '5s'
+    The status should be failure
+    The error should include "requires a positive integer"
+  End
+
+  It 'rejects zero' do
+    When run process_args '--cluster-node' 'pve1' '--reboot-timeout' '0'
+    The status should be failure
+    The error should include "requires a positive integer"
+  End
+
   # "exits with error when no value is provided" is covered by the
   # parameterized "missing-value rejections" block below.
 End
