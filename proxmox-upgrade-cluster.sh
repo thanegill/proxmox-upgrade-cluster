@@ -7,6 +7,7 @@ shopt -s inherit_errexit
 
 declare program_name
 program_name="$(basename "$0")"
+readonly program_name
 declare ssh_user="${PVE_UPGRADE_SSH_USER:-root}"
 declare ssh_key_auth_only=true
 declare ssh_multiplexing=true
