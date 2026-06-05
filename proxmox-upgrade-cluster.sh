@@ -263,6 +263,18 @@ local_ssh() {
   command ssh "$@"
 }
 
+close_ssh_masters() {
+  # Close any SSH control masters this run opened, instead of leaving them to
+  # linger for ControlPersist seconds. Run from main()'s EXIT trap. `ssh -O
+  # exit` terminates the master and removes its control socket; hosts whose
+  # master already expired (or never opened) just error out harmlessly.
+  [[ "$ssh_multiplexing" == true ]] || return 0
+  local host
+  for host in ${cluster_nodes[@]+"${cluster_nodes[@]}"} ${cluster_node:+"$cluster_node"}; do
+    local_ssh "${ssh_options[@]}" -O exit "$host" 2>/dev/null || true
+  done
+}
+
 node_ssh() {
   local host=${1?}
   local cmd=${2?}
@@ -1052,6 +1064,9 @@ process_args() {
 
 main() {
   process_args "$@"
+
+  # Tear down any SSH control masters on exit (any path, including errors).
+  trap close_ssh_masters EXIT
 
   if ! command -v jq >/dev/null 2>&1; then
     log_error "ERROR: 'jq' is required but was not found on PATH."

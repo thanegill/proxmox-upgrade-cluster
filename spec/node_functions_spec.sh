@@ -796,6 +796,42 @@ Describe 'local_ssh'
   End
 End
 
+Describe 'close_ssh_masters'
+  Include proxmox-upgrade-cluster.sh
+
+  It 'sends "ssh -O exit" for each connected host (plus the seed)' do
+    ssh_multiplexing=true
+    cluster_nodes=(pve1 pve2)
+    cluster_node=pveSeed
+    ssh_options=(-l root)
+    local_ssh() { printf 'EXIT[%s]\n' "$*"; }
+
+    When call close_ssh_masters
+    The line 1 of output should eq 'EXIT[-l root -O exit pve1]'
+    The line 2 of output should eq 'EXIT[-l root -O exit pve2]'
+    The line 3 of output should eq 'EXIT[-l root -O exit pveSeed]'
+  End
+
+  It 'does nothing when multiplexing is disabled' do
+    ssh_multiplexing=false
+    cluster_nodes=(pve1)
+    local_ssh() { echo 'SSH-CALLED'; }
+
+    When call close_ssh_masters
+    The output should eq ''
+  End
+
+  It 'tolerates an empty node list' do
+    ssh_multiplexing=true
+    cluster_nodes=()
+    cluster_node=''
+    local_ssh() { echo 'SSH-CALLED'; }
+
+    When call close_ssh_masters
+    The output should eq ''
+  End
+End
+
 Describe 'node_ssh'
   Include proxmox-upgrade-cluster.sh
 
