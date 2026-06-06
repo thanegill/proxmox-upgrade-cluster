@@ -817,6 +817,19 @@ Describe 'is_node_up'
     The error should include 'Node is down'
   End
 
+  It 'still logs "Node is down" under errexit (the wait_all subshell path)' do
+    # In wait_all's subshell is_node_up runs with errexit active; a failed ssh
+    # must not abort before the down-logging and status capture.
+    Set errexit:on
+    Mock node_ssh
+      exit 1
+    End
+
+    When run is_node_up 'pve1'
+    The status should be failure
+    The error should include 'Node is down'
+  End
+
   It 'passes default timeout of 5 seconds when none provided' do
     node_ssh() { echo "args: $*"; }
 

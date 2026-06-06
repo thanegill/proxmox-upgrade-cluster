@@ -315,8 +315,11 @@ node_pvesh() {
 is_node_up() {
   local node=${1?}
   local timeout=${2:-5}
-  node_ssh "$node" whoami "-oConnectTimeout=$timeout" | log_pipe_level 3 "[$node]"
-  local -i node_status=$?
+  local -i node_status=0
+  # `|| node_status=$?` keeps the pipeline in an OR-list so errexit doesn't abort
+  # before we capture the status. Without it, a failed ssh under active errexit
+  # (e.g. in the wait_all subshell) skips the down-logging below entirely.
+  node_ssh "$node" whoami "-oConnectTimeout=$timeout" | log_pipe_level 3 "[$node]" || node_status=$?
   if [[ $node_status -eq 0 ]]; then
     log_prefix "$node" log_level 2 "Node is up."
   else
