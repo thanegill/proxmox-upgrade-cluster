@@ -234,6 +234,10 @@ make_manager_status_pvesh() {
   done
   _mgr_status_json="{\"manager_status\":{\"node_status\":{$(IFS=,; echo "${pairs[*]}")}}}"
   node_pvesh() { echo "$_mgr_status_json"; }
+  # A populated manager_status implies pve-ha-crm is running, which
+  # node_get_offline_nodes now checks first; satisfy that gate so callers see
+  # the status JSON rather than the CRM-down branch.
+  node_service_running() { return 0; }
 }
 
 # Build a node_ssh mock that responds to `hostname` with a fixed value and
@@ -281,6 +285,18 @@ Describe 'node_get_offline_nodes'
     make_manager_status_pvesh pve1 online pve2 online
     When call node_get_offline_nodes 'pve1'
     The output should eq ''
+  End
+
+  It 'names the node and logs an error when pve-ha-crm is not running' do
+    # Without a running CRM, manager_status is null and the verdict is
+    # undeterminable; emit the node so the health_check fails fast instead of
+    # silently passing, and explain why on stderr.
+    node_service_running() { return 1; }
+    node_pvesh() { echo 'should-not-be-queried'; }
+
+    When call node_get_offline_nodes 'pve1'
+    The output should eq 'pve1'
+    The error should include 'pve-ha-crm is not running'
   End
 End
 
@@ -742,6 +758,25 @@ Describe 'node_reached_mode'
     When call node_reached_mode 'pve1' 'online'
     The status should be failure
     The error should include "Current mode 'maintenance' target mode 'online'"
+  End
+
+  It 'aborts with a clear error when the node has no HA status entry (null)' do
+    # A missing entry comes back as the string "null"; treating it as
+    # "not yet in target mode" would loop forever, so it must abort.
+    node_get_mode() { echo 'null'; }
+
+    When run node_reached_mode 'pve1' 'maintenance'
+    The status should be failure
+    The status should eq 1
+    The error should include 'no HA status entry'
+  End
+
+  It 'aborts when node_get_mode yields an empty string' do
+    node_get_mode() { echo ''; }
+
+    When run node_reached_mode 'pve1' 'maintenance'
+    The status should be failure
+    The error should include 'no HA status entry'
   End
 
   It 'does not leak $mode into the caller scope' do

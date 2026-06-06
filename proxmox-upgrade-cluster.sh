@@ -436,6 +436,18 @@ sort_nodes_by_guest_count() {
 node_get_offline_nodes() {
   # Emit one offline node name per line so callers can read into an array.
   local node=${1?}
+
+  # The offline verdict comes from HA manager_status, which only pve-ha-crm
+  # populates. If the service isn't running, manager_status is null and the jq
+  # below errors out; because callers read this via `mapfile < <(...)` that
+  # failure is swallowed and the check would silently pass as "all online".
+  # Name this node and log why instead, so the health_check fails fast.
+  if ! node_service_running "$node" "pve-ha-crm"; then
+    log_prefix "$node" log_error "pve-ha-crm is not running; cannot read HA node status."
+    printf '%s\n' "$node"
+    return 0
+  fi
+
   node_pvesh "$node" 'cluster/ha/status/manager_status' \
     | jq -r '.manager_status.node_status | to_entries[] | select(.value != "online") | .key'
 }
@@ -476,6 +488,14 @@ node_reached_mode() {
   local target_mode=${2?}
   local mode
   mode=$(node_get_mode "$node")
+  # A null/empty mode means the node has no HA status entry (CRM not reporting),
+  # not "not yet in target mode" — keep-waiting here would spin forever, so abort
+  # with a clear message instead. exit propagates: node_reached_mode is called
+  # directly in node_wait_with_progress's until-condition, not in a subshell.
+  if [[ -z "$mode" || "$mode" == "null" ]]; then
+    log_prefix "$node" log_error "Node has no HA status entry (mode: '$mode'). Is HA configured and pve-ha-crm running? Aborting."
+    exit 1
+  fi
   [[ "$mode" == "$target_mode" ]] && return 0
   log_prefix "$node" log_level 1 "Current mode '$mode' target mode '$target_mode'."
   return 1
