@@ -1,1 +1,8 @@
 result
+
+# Stray artifact dropped by `shellspec --random` (e.g. the order-independence
+# check). ShellSpec writes its randomized spec list to SHELLSPEC_INFILE, which
+# defaults to the relative path "file" in the project root and is not cleaned
+# up. Anchored so it only ignores ./file, not any nested path. See the upstream
+# bug report in docs/shellspec-infile-bug.md.
+/file
