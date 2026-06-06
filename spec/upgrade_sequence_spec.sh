@@ -211,10 +211,10 @@ Describe 'node_reboot'
     The error should not include 'Forcing Reboot'
   End
 
-  It 'passes ssh keepalive options when invoking reboot and dmesg -W' do
+  It 'issues reboot and follows dmesg over a single ssh session with keepalive opts' do
     install_reboot_stubs
     force_reboot=true
-    verbose=3  # log_pipe_level 3 (reboot pipe) only emits when verbose>=3
+    verbose=1
     # node_ssh_no_op's stdout gets piped through log_pipe_level → stderr.
     node_ssh_no_op() {
       local node=$1; shift
@@ -224,8 +224,9 @@ Describe 'node_reboot'
 
     When call node_reboot 'pve1'
     The status should be success
-    The error should include 'ssh(pve1, reboot, -oConnectTimeout=10 -oServerAliveInterval=5 -oServerAliveCountMax=2)'
-    The error should include 'ssh(pve1, dmesg -W, -oConnectTimeout=10 -oServerAliveInterval=5 -oServerAliveCountMax=2)'
+    # One combined invocation, not two — avoids the second-connection race that
+    # lost the shutdown dmesg.
+    The error should include 'ssh(pve1, reboot; exec dmesg -W, -oConnectTimeout=10 -oServerAliveInterval=5 -oServerAliveCountMax=2)'
   End
 
   It 'aborts with a timeout error when the node does not come back up' do
