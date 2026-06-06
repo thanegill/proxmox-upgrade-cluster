@@ -934,7 +934,7 @@ Describe 'node_ssh'
     The error should include "Running command 'uptime'"
   End
 
-  It 'passes arguments to local_ssh with ssh_options expansion' do
+  It 'passes ssh_options first, then host, then command' do
     verbose=2
     Mock local_ssh
       echo "args: $@"
@@ -942,7 +942,7 @@ Describe 'node_ssh'
     ssh_options=('-o StrictHostKeyChecking=no')
 
     When call node_ssh 'pve1' 'whoami'
-    The output should include 'args:'
+    The output should include 'args: -o StrictHostKeyChecking=no pve1 whoami'
     The error should include '[pve1]'
   End
 End

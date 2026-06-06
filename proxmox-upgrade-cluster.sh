@@ -290,7 +290,9 @@ node_ssh() {
   shift 2
   log_prefix "$host" log_level 2 "Running command '$cmd'"
 
-  local_ssh "$host" "${ssh_options[@]}" "$@" "$cmd" 2> >(log_prefix "$host" log_pipe_level 3 "[stderr]")
+  # Options first, then host, then the remote command — the conventional
+  # `ssh [options] host command` form, matching close_ssh_masters.
+  local_ssh "${ssh_options[@]}" "$@" "$host" "$cmd" 2> >(log_prefix "$host" log_pipe_level 3 "[stderr]")
 }
 
 node_ssh_no_op() {
