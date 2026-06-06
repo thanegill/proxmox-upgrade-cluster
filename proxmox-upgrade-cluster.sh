@@ -347,7 +347,10 @@ is_node_proxmox() {
 node_has_updates() {
   local node=${1?}
   local updates
-  updates="$(node_ssh "$node" 'DEBIAN_FRONTEND=noninteractive apt-get -qq -s upgrade' \
+  # Simulate dist-upgrade, not plain upgrade: node_upgrade runs `dist-upgrade`,
+  # which (unlike `upgrade`) installs new packages. A new pve kernel arrives as a
+  # new package, so plain `upgrade` would report "no updates" and skip the node.
+  updates="$(node_ssh "$node" 'DEBIAN_FRONTEND=noninteractive apt-get -qq -s dist-upgrade' \
     | tee >(log_pipe_level 2 "[$node][apt]"))"
   if [[ -n "$updates" ]]; then
     log_prefix "$node" log_success "Updates available."

@@ -399,6 +399,21 @@ Describe 'node_has_updates'
     The error should include 'No updates available.'
   End
 
+  It 'simulates with dist-upgrade, the same resolver the upgrade uses' do
+    # Detection must match node_upgrade's `apt-get dist-upgrade`; plain `upgrade`
+    # holds back changes needing new packages (e.g. a new pve kernel) and would
+    # wrongly report the node has nothing to do.
+    node_ssh() {
+      echo "ssh-cmd: $2" >&2
+      echo 'Installs: 5'
+    }
+
+    When call node_has_updates 'pve1'
+    The status should be success
+    The error should include 'dist-upgrade'
+    The error should include 'Updates available.'
+  End
+
   It 'does not leak $updates into the caller scope' do
     node_ssh() { echo 'Installs: 5'; }
     leak_check() {
