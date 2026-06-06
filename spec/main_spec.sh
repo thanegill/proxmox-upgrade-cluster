@@ -132,6 +132,14 @@ Describe 'main'
       The error should include 'running tasks: pve3.'
     End
 
+    It 'exits with error naming the nodes whose apt update failed' do
+      install_main_happy_path_stubs
+      wait_all_failed() { [[ "$1" == node_apt_update ]] && printf '%s\n' pve2; }
+      When run main '--cluster-node' 'pve1'
+      The status should be failure
+      The error should include 'failed apt update: pve2.'
+    End
+
     It 'skips the running-tasks check when allow_running_tasks is true' do
       install_main_happy_path_stubs
       wait_all_failed() { [[ "$1" == node_not_running_task ]] && echo 'TASK_CHECK_RAN' >&2; }

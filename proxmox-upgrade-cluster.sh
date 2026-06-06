@@ -1156,13 +1156,17 @@ main() {
     log_status "Checking which nodes need a reboot..."
     filter_nodes node_needs_reboot cluster_nodes "Removed from reboot sequence." upgrade_nodes
   else
-    log_status "Checking for updates on all nodes..."
-    wait_all node_apt_update cluster_nodes
+    health_check \
+      "Refreshing apt package lists on all nodes..." \
+      "At least one node failed apt update" \
+      "All nodes refreshed their apt cache." \
+      wait_all_failed node_apt_update cluster_nodes
 
     if [[ "$force_upgrade" == true ]]; then
       upgrade_nodes=("${cluster_nodes[@]}")
       log_warning "Forcing upgrade for all nodes, not just those that have updates available."
     else
+      log_status "Checking for updates on all nodes..."
       filter_nodes node_has_updates cluster_nodes "Removed from upgrade sequence." upgrade_nodes
     fi
   fi
