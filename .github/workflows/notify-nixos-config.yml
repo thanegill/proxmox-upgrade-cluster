@@ -1,0 +1,30 @@
+name: notify-nixos-config
+
+# On a new version tag/release, tell thanegill/nixos-config to bump this package's pin
+# right away — a repository_dispatch fans out to that repo's update-packages workflow,
+# which narrows to the named package and opens its bump PR immediately, rather than
+# waiting for the daily update cron.
+#
+# The flake pins rev = "v${version}", so a new tag is the signal. Fire on both a
+# published Release and a pushed v* tag to cover either release workflow; a duplicate
+# dispatch is an idempotent no-op (the second run just refreshes the same PR).
+#
+# client_payload.attr is the nixpkgs attribute nixos-config packages this repo as.
+# NIXOS_CONFIG_DISPATCH_TOKEN is a fine-grained PAT scoped to thanegill/nixos-config
+# with Contents: read and write (the dispatch endpoint's required permission).
+on:
+  release:
+    types: [published]
+  push:
+    tags: ["v*"]
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.NIXOS_CONFIG_DISPATCH_TOKEN }}
+          repository: thanegill/nixos-config
+          event-type: update-package
+          client-payload: '{"attr": "proxmox-upgrade-cluster"}'
