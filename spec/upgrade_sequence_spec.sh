@@ -217,16 +217,18 @@ Describe 'node_reboot'
     verbose=1
     # node_ssh_no_op's stdout gets piped through log_pipe_level → stderr.
     node_ssh_no_op() {
+      local flag=$1; shift
       local node=$1; shift
       local cmd=$1; shift
-      echo "ssh($node, $cmd, $*)"
+      echo "ssh($flag, $node, $cmd, $*)"
     }
 
     When call node_reboot 'pve1'
     The status should be success
     # One combined invocation, not two — avoids the second-connection race that
-    # lost the shutdown dmesg.
-    The error should include 'ssh(pve1, reboot; exec dmesg -W, -oConnectTimeout=10 -oServerAliveInterval=5 -oServerAliveCountMax=2)'
+    # lost the shutdown dmesg. The flag keeps the shutdown disconnect from being
+    # reported as an ssh fault.
+    The error should include 'ssh(--failure-expected, pve1, reboot; exec dmesg -W, -oConnectTimeout=10 -oServerAliveInterval=5 -oServerAliveCountMax=2)'
   End
 
   It 'aborts with a timeout error when the node does not come back up' do

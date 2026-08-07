@@ -514,6 +514,31 @@ Describe 'node_ssh_no_op'
     The output should eq ''
     The error should include 'NO-OP'
   End
+
+  It 'forwards --failure-expected to node_ssh' do
+    dry_run=false
+    node_ssh() { echo "ssh($*)"; }
+
+    When call node_ssh_no_op --failure-expected 'pve1' 'whoami' '-oConnectTimeout=10'
+    The output should eq 'ssh(--failure-expected pve1 whoami -oConnectTimeout=10)'
+  End
+
+  It 'omits the flag when not asked for it' do
+    dry_run=false
+    node_ssh() { echo "ssh($*)"; }
+
+    When call node_ssh_no_op 'pve1' 'whoami'
+    The output should eq 'ssh(pve1 whoami)'
+  End
+
+  It 'still skips when dry_run is true and --failure-expected is passed' do
+    dry_run=true
+
+    When call node_ssh_no_op --failure-expected 'pve1' 'whoami'
+    The status should be success
+    The output should eq ''
+    The error should include "Not running 'whoami'"
+  End
 End
 
 # Build a node_pvesh mock that returns a JSON array of guest entries with
@@ -944,6 +969,85 @@ Describe 'node_ssh'
     When call node_ssh 'pve1' 'whoami'
     The output should include 'args: -o StrictHostKeyChecking=no pve1 whoami'
     The error should include '[pve1]'
+  End
+
+  It 'reports ssh own error output when the connection fails (255)' do
+    verbose=0
+    Mock local_ssh
+      echo 'Connection to pve1 closed by remote host.' >&2
+      exit 255
+    End
+
+    When call node_ssh 'pve1' 'apt-get autoremove -y'
+    The status should eq 255
+    The error should include '[pve1][ssh]'
+    The error should include 'Connection to pve1 closed by remote host.'
+  End
+
+  It 'stays quiet about remote stderr when the remote command fails' do
+    # 100 is apt's own failure status; only ssh itself can exit 255, which is
+    # what keeps the 255 promotion above from leaking every remote warning.
+    verbose=0
+    Mock local_ssh
+      echo 'E: Unable to correct problems' >&2
+      exit 100
+    End
+
+    When call node_ssh 'pve1' 'apt-get autoremove -y'
+    The status should eq 100
+    The error should not include 'Unable to correct problems'
+  End
+
+  It 'passes stdout through unchanged when buffering stderr' do
+    verbose=0
+    Mock local_ssh
+      echo 'stdout payload'
+      echo 'stderr noise' >&2
+    End
+
+    When call node_ssh 'pve1' 'whoami'
+    The status should be success
+    The output should eq 'stdout payload'
+    The error should not include 'stderr noise'
+  End
+
+  It 'stays quiet on 255 when the caller passes --failure-expected' do
+    verbose=0
+    Mock local_ssh
+      echo 'ssh: connect to host pve1 port 22: Connection refused' >&2
+      exit 255
+    End
+
+    When call node_ssh --failure-expected 'pve1' 'whoami'
+    The status should eq 255
+    The error should not include 'Connection refused'
+  End
+
+  It 'does not pass --failure-expected through to ssh' do
+    verbose=0
+    ssh_options=()
+    Mock local_ssh
+      echo "args: $@"
+    End
+
+    When call node_ssh --failure-expected 'pve1' 'whoami'
+    The output should eq 'args: pve1 whoami'
+  End
+
+  It 'streams stderr live at verbose>=3 instead of buffering it' do
+    # The live path writes through an async process substitution, so its output
+    # can land after the assertions run; assert on the branch taken (no
+    # buffered [ssh] replay) rather than on the streamed text.
+    verbose=3
+    Mock local_ssh
+      echo 'ssh debug line' >&2
+      exit 255
+    End
+
+    When call node_ssh 'pve1' 'whoami'
+    The status should eq 255
+    The error should include "Running command 'whoami'"
+    The error should not include '[ssh]'
   End
 End
 
