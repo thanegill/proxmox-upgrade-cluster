@@ -944,6 +944,97 @@ Describe 'close_ssh_masters'
   End
 End
 
+Describe 'node_boot_id'
+  Include proxmox-upgrade-cluster.sh
+
+  It 'reads the kernel boot ID with a bounded connect timeout' do
+    verbose=0
+    node_ssh() { echo "ssh($1, $2, $3)"; }
+
+    When call node_boot_id 'pve1'
+    The output should eq 'ssh(pve1, cat /proc/sys/kernel/random/boot_id, -oConnectTimeout=5)'
+  End
+
+  It 'passes a custom connect timeout when given one' do
+    verbose=0
+    node_ssh() { echo "ssh($1, $2, $3)"; }
+
+    When call node_boot_id 'pve1' '20'
+    The output should eq 'ssh(pve1, cat /proc/sys/kernel/random/boot_id, -oConnectTimeout=20)'
+  End
+
+  It 'forwards --failure-expected to node_ssh' do
+    verbose=0
+    node_ssh() { echo "ssh($*)"; }
+
+    When call node_boot_id --failure-expected 'pve1'
+    The output should eq 'ssh(--failure-expected pve1 cat /proc/sys/kernel/random/boot_id -oConnectTimeout=5)'
+  End
+
+  It 'omits the flag when not asked for it' do
+    verbose=0
+    node_ssh() { echo "ssh($*)"; }
+
+    When call node_boot_id 'pve1'
+    The output should not include '--failure-expected'
+  End
+End
+
+Describe 'is_node_rebooted'
+  Include proxmox-upgrade-cluster.sh
+
+  It 'returns success when the boot ID changed' do
+    verbose=2
+    node_boot_id() { echo 'after-id'; }
+
+    When call is_node_rebooted 'pve1' 'before-id'
+    The status should be success
+    The error should include 'Node restarted: boot ID before-id -> after-id.'
+  End
+
+  It 'returns failure when the node reports its pre-reboot boot ID' do
+    # A node that has not started shutting down yet, or one whose `reboot` did
+    # not take, answers ssh perfectly well with the boot ID it already had.
+    verbose=2
+    node_boot_id() { echo 'before-id'; }
+
+    When call is_node_rebooted 'pve1' 'before-id'
+    The status should be failure
+    The error should include 'has not restarted yet'
+  End
+
+  It 'returns failure when the node answers with an empty boot ID' do
+    verbose=2
+    node_boot_id() { echo ''; }
+
+    When call is_node_rebooted 'pve1' 'before-id'
+    The status should be failure
+    The error should include 'has not restarted yet'
+  End
+
+  It 'returns failure when the node is unreachable' do
+    verbose=2
+    node_boot_id() { return 255; }
+
+    When call is_node_rebooted 'pve1' 'before-id'
+    The status should be failure
+    The error should include 'Node is not answering ssh.'
+  End
+
+  It 'keeps ssh quiet about the connection failures it expects' do
+    verbose=0
+    ssh_options=()
+    Mock local_ssh
+      echo 'ssh: connect to host pve1 port 22: Connection refused' >&2
+      exit 255
+    End
+
+    When call is_node_rebooted 'pve1' 'before-id'
+    The status should be failure
+    The error should not include 'Connection refused'
+  End
+End
+
 Describe 'node_ssh'
   Include proxmox-upgrade-cluster.sh
 

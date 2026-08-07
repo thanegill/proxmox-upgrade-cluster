@@ -701,6 +701,38 @@ node_needs_reboot() {
   [[ "$expected_kernel" != "$booted_kernel" ]]
 }
 
+node_boot_id() {
+  # The kernel regenerates boot_id on every boot, which makes it the only
+  # cheap positive evidence that a node restarted. An ssh probe is not: a node
+  # answers ssh for as long as it takes systemd to reach the point of stopping
+  # sshd, which on a PVE host is tens of seconds AFTER `reboot` returns.
+  local -a failure_expected=()
+  if [[ ${1:-} == --failure-expected ]]; then
+    failure_expected=("$1")
+    shift
+  fi
+  local node=${1?}
+  local timeout=${2:-5}
+  node_ssh ${failure_expected[@]+"${failure_expected[@]}"} "$node" 'cat /proc/sys/kernel/random/boot_id' "-oConnectTimeout=$timeout"
+}
+
+is_node_rebooted() {
+  local node=${1?}
+  local boot_id_prev=${2?}
+
+  local boot_id_current
+  # Unreachable is the normal state for most of this poll.
+  if ! boot_id_current=$(node_boot_id --failure-expected "$node"); then
+    log_prefix "$node" log_level 2 "Node is not answering ssh."
+    return 1
+  fi
+  if [[ -z "$boot_id_current" || "$boot_id_current" == "$boot_id_prev" ]]; then
+    log_prefix "$node" log_level 2 "Node answered with its pre-reboot boot ID; it has not restarted yet."
+    return 1
+  fi
+  log_prefix "$node" log_level 2 "Node restarted: boot ID $boot_id_prev -> $boot_id_current."
+}
+
 node_reboot_and_follow_dmesg() {
   # One session both triggers the reboot and execs into the follower: a second
   # connection opened for `dmesg -W` would have to establish against an already
@@ -743,6 +775,11 @@ node_reboot() {
     return 0
   fi
 
+  # Read the boot ID before issuing the reboot; the poll below waits for it to
+  # change. Failing here aborts before anything is touched.
+  local boot_id_prev
+  boot_id_prev=$(node_boot_id "$node")
+
   log_prefix "$node" log_error "Rebooting in 5 seconds! Press CTRL-C to cancel..."
   wait_sleep 5s
   log_prefix "$node" log_status "Rebooting, logging shutdown dmesg:"
@@ -756,10 +793,10 @@ node_reboot() {
 
   log_prefix "$node" log_status "Waiting up to ${reboot_timeout}s for node to come back up..."
   SECONDS=0
-  until is_node_up "$node"; do
+  until is_node_rebooted "$node" "$boot_id_prev"; do
     if ((SECONDS >= reboot_timeout)); then
       log_progress_end
-      log_prefix "$node" log_error "Timed out after ${reboot_timeout}s waiting for '$node' to come back up."
+      log_prefix "$node" log_error "Timed out after ${reboot_timeout}s waiting for '$node' to reboot and come back up."
       return 1
     fi
     log_progress 1s
@@ -938,8 +975,8 @@ OPTIONS
         boot. Mutually exclusive with --force-reboot.
 
     --reboot-timeout SECONDS
-        Maximum number of seconds to wait for a node to come back up after a
-        reboot before aborting the upgrade. Defaults to $reboot_timeout.
+        Maximum number of seconds to wait for a node to reboot and come back
+        up before aborting the upgrade. Defaults to $reboot_timeout.
 
     --allow-running-guests
         Disable check for running guests on the node prior to upgrade.

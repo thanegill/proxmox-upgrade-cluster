@@ -112,8 +112,8 @@ OPTIONS
         boot. Mutually exclusive with --force-reboot.
 
     --reboot-timeout SECONDS
-        Maximum number of seconds to wait for a node to come back up after a
-        reboot before aborting the upgrade. Defaults to 900 (15 minutes).
+        Maximum number of seconds to wait for a node to reboot and come back
+        up before aborting the upgrade. Defaults to 900 (15 minutes).
 
     --allow-running-guests
         Disable check for running guests on the node prior to upgrade.

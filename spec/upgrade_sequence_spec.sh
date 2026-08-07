@@ -98,7 +98,8 @@ Describe 'node_reboot'
   #   verbose=1 (so log lines appear in stderr)
   #   force_reboot=false, skip_reboot=false, dry_run=false
   #   node_needs_reboot returns 1 (no reboot needed)
-  #   is_node_up returns 0 (comes back immediately)
+  #   node_boot_id yields a fresh ID per call, so the real is_node_rebooted
+  #     sees a change on its first poll and the node "comes back" immediately
   #   wait_sleep and node_ssh_no_op are no-ops
   #   reboot_timeout retains its script default (900s)
   install_reboot_stubs() {
@@ -109,7 +110,16 @@ Describe 'node_reboot'
     node_needs_reboot() { return 1; }
     wait_sleep() { :; }
     node_ssh_no_op() { :; }
-    is_node_up() { return 0; }
+    # is_node_rebooted reads the boot ID inside a command substitution, so the
+    # counter has to live in a file to survive that subshell.
+    boot_id_seq="$(mktemp)"
+    echo 0 > "$boot_id_seq"
+    node_boot_id() {
+      local n
+      n="$(cat "$boot_id_seq")"
+      echo $((n + 1)) > "$boot_id_seq"
+      echo "boot-id-$n"
+    }
   }
 
   It 'returns early with success when no reboot is needed' do
@@ -176,7 +186,7 @@ Describe 'node_reboot'
     # Sentinels: if any of these run we have a regression.
     wait_sleep() { echo 'wait_sleep called' >&2; }
     node_ssh_no_op() { echo 'ssh_no_op called' >&2; }
-    is_node_up() { echo 'is_node_up called' >&2; return 0; }
+    node_boot_id() { echo 'node_boot_id called' >&2; }
 
     When call node_reboot 'pve1'
     The status should be success
@@ -184,7 +194,7 @@ Describe 'node_reboot'
     The error should not include 'WILL need a reboot'
     The error should not include 'wait_sleep called'
     The error should not include 'ssh_no_op called'
-    The error should not include 'is_node_up called'
+    The error should not include 'node_boot_id called'
   End
 
   It 'skips reboot with a stronger warning when a kernel update is staged' do
@@ -235,13 +245,43 @@ Describe 'node_reboot'
     install_reboot_stubs
     force_reboot=true
     reboot_timeout=0
-    is_node_up() { return 1; }
+    node_boot_id() { return 1; }
 
     When run node_reboot 'pve1'
     The status should be failure
     The error should include 'Timed out after 0s'
     The error should include "'pve1'"
     The error should not include 'Rebooted successfully'
+  End
+
+  It 'does not accept a node still answering with its pre-reboot boot ID' do
+    # The regression: a PVE host keeps answering ssh for tens of seconds after
+    # `reboot`, so a plain reachability probe reported "Rebooted successfully"
+    # while the node was still shutting down, and the next remote command died
+    # with ssh 255 when it finally dropped.
+    install_reboot_stubs
+    force_reboot=true
+    reboot_timeout=0
+    node_boot_id() { echo 'boot-id-unchanged'; }
+
+    When run node_reboot 'pve1'
+    The status should be failure
+    The error should include 'Timed out after 0s'
+    The error should not include 'Rebooted successfully'
+  End
+
+  It 'reads the boot ID before issuing the reboot' do
+    install_reboot_stubs
+    force_reboot=true
+    invocations="$(mktemp)"
+    node_boot_id() { echo 'boot_id' >> "$invocations"; echo "boot-id-$(wc -l < "$invocations")"; }
+    node_ssh_no_op() { echo 'reboot' >> "$invocations"; }
+
+    When call node_reboot 'pve1'
+    The status should be success
+    The contents of file "$invocations" should start with 'boot_id'
+    The error should include 'Rebooted successfully'
+    rm -f "$invocations"
   End
 End
 
