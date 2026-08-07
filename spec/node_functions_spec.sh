@@ -446,7 +446,7 @@ End
 Describe 'node_upgrade'
   Include proxmox-upgrade-cluster.sh
 
-  It 'calls node_ssh_no_op with dist-upgrade command' do
+  It 'calls node_ssh with the dist-upgrade command' do
     Mock node_ssh
       echo 'upgraded'
     End
@@ -457,12 +457,12 @@ Describe 'node_upgrade'
 
   It 'skips apt dist-upgrade and returns 0 when reboot_only=true' do
     reboot_only=true
-    node_ssh_no_op() { echo 'ssh_no_op-called' >&2; }
+    node_ssh() { echo 'node_ssh-called' >&2; }
 
     When call node_upgrade 'pve1'
     The status should be success
     The error should include 'Skipping apt dist-upgrade (--reboot-only)'
-    The error should not include 'ssh_no_op-called'
+    The error should not include 'node_ssh-called'
   End
 End
 
@@ -493,51 +493,62 @@ Describe 'node_pvesh'
   End
 End
 
-Describe 'node_ssh_no_op'
+Describe 'node_ssh --no-op'
   Include proxmox-upgrade-cluster.sh
 
-  It 'runs command when dry_run is false' do
-    Mock node_ssh
+  It 'runs the command when dry_run is false' do
+    dry_run=false
+    ssh_options=()
+    Mock local_ssh
       echo 'executed'
     End
-    dry_run=false
 
-    When call node_ssh_no_op 'pve1' 'whoami'
+    When call node_ssh --no-op 'pve1' 'whoami'
     The output should include 'executed'
   End
 
-  It 'skips command when dry_run is true' do
+  It 'skips the command when dry_run is true' do
     dry_run=true
 
-    When call node_ssh_no_op 'pve1' 'whoami'
+    When call node_ssh --no-op 'pve1' 'whoami'
     The status should be success
     The output should eq ''
     The error should include 'NO-OP'
+    The error should include "Not running 'whoami'"
   End
 
-  It 'forwards --failure-expected to node_ssh' do
-    dry_run=false
-    node_ssh() { echo "ssh($*)"; }
+  It 'runs the command when dry_run is true but --no-op was not passed' do
+    # Only the calls that opt in are skipped; probes and reads still run, which
+    # is what makes --dry-run report anything useful.
+    dry_run=true
+    ssh_options=()
+    Mock local_ssh
+      echo 'executed'
+    End
 
-    When call node_ssh_no_op --failure-expected 'pve1' 'whoami' '-oConnectTimeout=10'
-    The output should eq 'ssh(--failure-expected pve1 whoami -oConnectTimeout=10)'
+    When call node_ssh 'pve1' 'whoami'
+    The output should include 'executed'
+    The error should not include 'NO-OP'
   End
 
-  It 'omits the flag when not asked for it' do
-    dry_run=false
-    node_ssh() { echo "ssh($*)"; }
-
-    When call node_ssh_no_op 'pve1' 'whoami'
-    The output should eq 'ssh(pve1 whoami)'
-  End
-
-  It 'still skips when dry_run is true and --failure-expected is passed' do
+  It 'accepts --no-op and --failure-expected together, in either order' do
     dry_run=true
 
-    When call node_ssh_no_op --failure-expected 'pve1' 'whoami'
+    When call node_ssh --failure-expected --no-op 'pve1' 'whoami'
     The status should be success
     The output should eq ''
     The error should include "Not running 'whoami'"
+  End
+
+  It 'does not pass --no-op through to ssh' do
+    dry_run=false
+    ssh_options=()
+    Mock local_ssh
+      echo "args: $@"
+    End
+
+    When call node_ssh --no-op 'pve1' 'whoami'
+    The output should eq 'args: pve1 whoami'
   End
 End
 
@@ -952,7 +963,7 @@ Describe 'node_boot_id'
     node_ssh() { echo "ssh($1, $2, $3)"; }
 
     When call node_boot_id 'pve1'
-    The output should eq 'ssh(pve1, cat /proc/sys/kernel/random/boot_id, -oConnectTimeout=5)'
+    The output should eq 'ssh(-oConnectTimeout=5, pve1, cat /proc/sys/kernel/random/boot_id)'
   End
 
   It 'passes a custom connect timeout when given one' do
@@ -960,7 +971,7 @@ Describe 'node_boot_id'
     node_ssh() { echo "ssh($1, $2, $3)"; }
 
     When call node_boot_id 'pve1' '20'
-    The output should eq 'ssh(pve1, cat /proc/sys/kernel/random/boot_id, -oConnectTimeout=20)'
+    The output should eq 'ssh(-oConnectTimeout=20, pve1, cat /proc/sys/kernel/random/boot_id)'
   End
 
   It 'forwards --failure-expected to node_ssh' do
@@ -968,7 +979,7 @@ Describe 'node_boot_id'
     node_ssh() { echo "ssh($*)"; }
 
     When call node_boot_id --failure-expected 'pve1'
-    The output should eq 'ssh(--failure-expected pve1 cat /proc/sys/kernel/random/boot_id -oConnectTimeout=5)'
+    The output should eq 'ssh(--failure-expected -oConnectTimeout=5 pve1 cat /proc/sys/kernel/random/boot_id)'
   End
 
   It 'omits the flag when not asked for it' do

@@ -322,7 +322,7 @@ End
 Use `Mock` with `exit` not `return` — Mock runs in a subshell:
 
 ```bash
-It 'calls node_ssh_no_op with dist-upgrade command' do
+It 'calls node_ssh with the dist-upgrade command' do
   Mock node_ssh
     echo 'upgraded'
     exit 0

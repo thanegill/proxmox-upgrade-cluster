@@ -5,7 +5,7 @@ Describe 'node_set_maintenance'
 
   It 'skips and warns when use_maintenance_mode is false (enable)' do
     use_maintenance_mode=false
-    node_ssh_no_op() { echo 'skipped'; }
+    node_ssh() { echo 'skipped'; }
     When call node_set_maintenance 'pve1' enable
     The status should be success
     The error should include 'Not setting maintenance mode'
@@ -14,7 +14,7 @@ Describe 'node_set_maintenance'
   It 'enables maintenance and waits for maintenance mode' do
     use_maintenance_mode=true
     dry_run=false
-    node_ssh_no_op() { echo 'maintenance set'; }
+    node_ssh() { echo 'maintenance set'; }
     # Not in target on the first poll, reached on the second, so the wait logs
     # one iteration rather than taking the early silent exit. The predicate is
     # called directly (not via command substitution), so a counter persists.
@@ -35,7 +35,7 @@ Describe 'node_set_maintenance'
   It 'skips the mode wait when dry_run is true (enable)' do
     use_maintenance_mode=true
     dry_run=true
-    node_ssh_no_op() { echo 'maintenance set'; }
+    node_ssh() { echo 'maintenance set'; }
     node_get_mode() { echo 'maintenance'; }  # if wrongly polled, completes fast
     wait_sleep() { :; }
 
@@ -57,7 +57,7 @@ Describe 'node_set_maintenance'
     use_maintenance_mode=true
     dry_run=false
     node_service_running() { return 0; }  # HA LRM already up -> silent service wait
-    node_ssh_no_op() { echo 'maintenance disabled'; }
+    node_ssh() { echo 'maintenance disabled'; }
     _reached_polls=0
     node_reached_mode() {
       _reached_polls=$((_reached_polls + 1))
@@ -76,7 +76,7 @@ Describe 'node_set_maintenance'
     use_maintenance_mode=true
     dry_run=true
     node_service_running() { return 0; }  # HA LRM already up -> silent service wait
-    node_ssh_no_op() { echo 'maintenance disabled'; }
+    node_ssh() { echo 'maintenance disabled'; }
     wait_sleep() { :; }
 
     When call node_set_maintenance 'pve1' disable
@@ -100,7 +100,7 @@ Describe 'node_reboot'
   #   node_needs_reboot returns 1 (no reboot needed)
   #   node_boot_id yields a fresh ID per call, so the real is_node_rebooted
   #     sees a change on its first poll and the node "comes back" immediately
-  #   wait_sleep and node_ssh_no_op are no-ops
+  #   wait_sleep and node_ssh are no-ops
   #   reboot_timeout retains its script default (900s)
   install_reboot_stubs() {
     verbose=1
@@ -109,7 +109,7 @@ Describe 'node_reboot'
     dry_run=false
     node_needs_reboot() { return 1; }
     wait_sleep() { :; }
-    node_ssh_no_op() { :; }
+    node_ssh() { :; }
     # is_node_rebooted reads the boot ID inside a command substitution, so the
     # counter has to live in a file to survive that subshell.
     boot_id_seq="$(mktemp)"
@@ -185,7 +185,7 @@ Describe 'node_reboot'
     skip_reboot=true
     # Sentinels: if any of these run we have a regression.
     wait_sleep() { echo 'wait_sleep called' >&2; }
-    node_ssh_no_op() { echo 'ssh_no_op called' >&2; }
+    node_ssh() { echo 'node_ssh called' >&2; }
     node_boot_id() { echo 'node_boot_id called' >&2; }
 
     When call node_reboot 'pve1'
@@ -193,7 +193,7 @@ Describe 'node_reboot'
     The error should include 'Skipping reboot per --skip-reboot.'
     The error should not include 'WILL need a reboot'
     The error should not include 'wait_sleep called'
-    The error should not include 'ssh_no_op called'
+    The error should not include 'node_ssh called'
     The error should not include 'node_boot_id called'
   End
 
@@ -225,20 +225,21 @@ Describe 'node_reboot'
     install_reboot_stubs
     force_reboot=true
     verbose=1
-    # node_ssh_no_op's stdout gets piped through log_pipe_level → stderr.
-    node_ssh_no_op() {
-      local flag=$1; shift
+    # node_ssh's stdout gets piped through log_pipe_level → stderr.
+    node_ssh() {
+      local opts=()
+      while [[ $1 == -* ]]; do opts+=("$1"); shift; done
       local node=$1; shift
       local cmd=$1; shift
-      echo "ssh($flag, $node, $cmd, $*)"
+      echo "ssh(${opts[*]}, $node, $cmd)"
     }
 
     When call node_reboot 'pve1'
     The status should be success
     # One combined invocation, not two — avoids the second-connection race that
-    # lost the shutdown dmesg. The flag keeps the shutdown disconnect from being
-    # reported as an ssh fault.
-    The error should include 'ssh(--failure-expected, pve1, reboot; exec dmesg -W, -oConnectTimeout=10 -oServerAliveInterval=5 -oServerAliveCountMax=2)'
+    # lost the shutdown dmesg. --failure-expected keeps the shutdown disconnect
+    # from being reported as an ssh fault.
+    The error should include 'ssh(--no-op --failure-expected -oConnectTimeout=10 -oServerAliveInterval=5 -oServerAliveCountMax=2, pve1, reboot; exec dmesg -W)'
   End
 
   It 'aborts with a timeout error when the node does not come back up' do
@@ -275,7 +276,7 @@ Describe 'node_reboot'
     force_reboot=true
     invocations="$(mktemp)"
     node_boot_id() { echo 'boot_id' >> "$invocations"; echo "boot-id-$(wc -l < "$invocations")"; }
-    node_ssh_no_op() { echo 'reboot' >> "$invocations"; }
+    node_ssh() { echo 'reboot' >> "$invocations"; }
 
     When call node_reboot 'pve1'
     The status should be success
@@ -295,7 +296,7 @@ Describe 'node_post_upgrade'
 
   It 'logs the no-reinstall path when pkgs_reinstall is empty' do
     pkgs_reinstall=()
-    node_ssh_no_op() { :; }
+    node_ssh() { :; }
 
     When call node_post_upgrade 'pve1'
     The error should include "No packages to force reinstall"
@@ -304,7 +305,7 @@ Describe 'node_post_upgrade'
 
   It 'reinstalls packages when pkgs_reinstall is set' do
     pkgs_reinstall=("pve-firmware")
-    node_ssh_no_op() { echo 'reinstalled'; }
+    node_ssh() { echo 'reinstalled'; }
 
     When call node_post_upgrade 'pve1'
     The error should include "Force reinstalling"
@@ -314,12 +315,12 @@ Describe 'node_post_upgrade'
   It 'skips all apt cleanup and returns 0 when reboot_only=true' do
     reboot_only=true
     pkgs_reinstall=("pve-firmware")
-    node_ssh_no_op() { echo 'ssh_no_op-called' >&2; }
+    node_ssh() { echo 'node_ssh-called' >&2; }
 
     When call node_post_upgrade 'pve1'
     The status should be success
     The error should include 'Skipping apt cleanup (--reboot-only)'
-    The error should not include 'ssh_no_op-called'
+    The error should not include 'node_ssh-called'
     The error should not include 'Force reinstalling'
     The error should not include 'Removing old packages'
   End
