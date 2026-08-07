@@ -514,6 +514,31 @@ Describe 'node_ssh_no_op'
     The output should eq ''
     The error should include 'NO-OP'
   End
+
+  It 'forwards --failure-expected to node_ssh' do
+    dry_run=false
+    node_ssh() { echo "ssh($*)"; }
+
+    When call node_ssh_no_op --failure-expected 'pve1' 'whoami' '-oConnectTimeout=10'
+    The output should eq 'ssh(--failure-expected pve1 whoami -oConnectTimeout=10)'
+  End
+
+  It 'omits the flag when not asked for it' do
+    dry_run=false
+    node_ssh() { echo "ssh($*)"; }
+
+    When call node_ssh_no_op 'pve1' 'whoami'
+    The output should eq 'ssh(pve1 whoami)'
+  End
+
+  It 'still skips when dry_run is true and --failure-expected is passed' do
+    dry_run=true
+
+    When call node_ssh_no_op --failure-expected 'pve1' 'whoami'
+    The status should be success
+    The output should eq ''
+    The error should include "Not running 'whoami'"
+  End
 End
 
 # Build a node_pvesh mock that returns a JSON array of guest entries with
@@ -919,6 +944,97 @@ Describe 'close_ssh_masters'
   End
 End
 
+Describe 'node_boot_id'
+  Include proxmox-upgrade-cluster.sh
+
+  It 'reads the kernel boot ID with a bounded connect timeout' do
+    verbose=0
+    node_ssh() { echo "ssh($1, $2, $3)"; }
+
+    When call node_boot_id 'pve1'
+    The output should eq 'ssh(pve1, cat /proc/sys/kernel/random/boot_id, -oConnectTimeout=5)'
+  End
+
+  It 'passes a custom connect timeout when given one' do
+    verbose=0
+    node_ssh() { echo "ssh($1, $2, $3)"; }
+
+    When call node_boot_id 'pve1' '20'
+    The output should eq 'ssh(pve1, cat /proc/sys/kernel/random/boot_id, -oConnectTimeout=20)'
+  End
+
+  It 'forwards --failure-expected to node_ssh' do
+    verbose=0
+    node_ssh() { echo "ssh($*)"; }
+
+    When call node_boot_id --failure-expected 'pve1'
+    The output should eq 'ssh(--failure-expected pve1 cat /proc/sys/kernel/random/boot_id -oConnectTimeout=5)'
+  End
+
+  It 'omits the flag when not asked for it' do
+    verbose=0
+    node_ssh() { echo "ssh($*)"; }
+
+    When call node_boot_id 'pve1'
+    The output should not include '--failure-expected'
+  End
+End
+
+Describe 'is_node_rebooted'
+  Include proxmox-upgrade-cluster.sh
+
+  It 'returns success when the boot ID changed' do
+    verbose=2
+    node_boot_id() { echo 'after-id'; }
+
+    When call is_node_rebooted 'pve1' 'before-id'
+    The status should be success
+    The error should include 'Node restarted: boot ID before-id -> after-id.'
+  End
+
+  It 'returns failure when the node reports its pre-reboot boot ID' do
+    # A node that has not started shutting down yet, or one whose `reboot` did
+    # not take, answers ssh perfectly well with the boot ID it already had.
+    verbose=2
+    node_boot_id() { echo 'before-id'; }
+
+    When call is_node_rebooted 'pve1' 'before-id'
+    The status should be failure
+    The error should include 'has not restarted yet'
+  End
+
+  It 'returns failure when the node answers with an empty boot ID' do
+    verbose=2
+    node_boot_id() { echo ''; }
+
+    When call is_node_rebooted 'pve1' 'before-id'
+    The status should be failure
+    The error should include 'has not restarted yet'
+  End
+
+  It 'returns failure when the node is unreachable' do
+    verbose=2
+    node_boot_id() { return 255; }
+
+    When call is_node_rebooted 'pve1' 'before-id'
+    The status should be failure
+    The error should include 'Node is not answering ssh.'
+  End
+
+  It 'keeps ssh quiet about the connection failures it expects' do
+    verbose=0
+    ssh_options=()
+    Mock local_ssh
+      echo 'ssh: connect to host pve1 port 22: Connection refused' >&2
+      exit 255
+    End
+
+    When call is_node_rebooted 'pve1' 'before-id'
+    The status should be failure
+    The error should not include 'Connection refused'
+  End
+End
+
 Describe 'node_ssh'
   Include proxmox-upgrade-cluster.sh
 
@@ -944,6 +1060,85 @@ Describe 'node_ssh'
     When call node_ssh 'pve1' 'whoami'
     The output should include 'args: -o StrictHostKeyChecking=no pve1 whoami'
     The error should include '[pve1]'
+  End
+
+  It 'reports ssh own error output when the connection fails (255)' do
+    verbose=0
+    Mock local_ssh
+      echo 'Connection to pve1 closed by remote host.' >&2
+      exit 255
+    End
+
+    When call node_ssh 'pve1' 'apt-get autoremove -y'
+    The status should eq 255
+    The error should include '[pve1][ssh]'
+    The error should include 'Connection to pve1 closed by remote host.'
+  End
+
+  It 'stays quiet about remote stderr when the remote command fails' do
+    # 100 is apt's own failure status; only ssh itself can exit 255, which is
+    # what keeps the 255 promotion above from leaking every remote warning.
+    verbose=0
+    Mock local_ssh
+      echo 'E: Unable to correct problems' >&2
+      exit 100
+    End
+
+    When call node_ssh 'pve1' 'apt-get autoremove -y'
+    The status should eq 100
+    The error should not include 'Unable to correct problems'
+  End
+
+  It 'passes stdout through unchanged when buffering stderr' do
+    verbose=0
+    Mock local_ssh
+      echo 'stdout payload'
+      echo 'stderr noise' >&2
+    End
+
+    When call node_ssh 'pve1' 'whoami'
+    The status should be success
+    The output should eq 'stdout payload'
+    The error should not include 'stderr noise'
+  End
+
+  It 'stays quiet on 255 when the caller passes --failure-expected' do
+    verbose=0
+    Mock local_ssh
+      echo 'ssh: connect to host pve1 port 22: Connection refused' >&2
+      exit 255
+    End
+
+    When call node_ssh --failure-expected 'pve1' 'whoami'
+    The status should eq 255
+    The error should not include 'Connection refused'
+  End
+
+  It 'does not pass --failure-expected through to ssh' do
+    verbose=0
+    ssh_options=()
+    Mock local_ssh
+      echo "args: $@"
+    End
+
+    When call node_ssh --failure-expected 'pve1' 'whoami'
+    The output should eq 'args: pve1 whoami'
+  End
+
+  It 'streams stderr live at verbose>=3 instead of buffering it' do
+    # The live path writes through an async process substitution, so its output
+    # can land after the assertions run; assert on the branch taken (no
+    # buffered [ssh] replay) rather than on the streamed text.
+    verbose=3
+    Mock local_ssh
+      echo 'ssh debug line' >&2
+      exit 255
+    End
+
+    When call node_ssh 'pve1' 'whoami'
+    The status should eq 255
+    The error should include "Running command 'whoami'"
+    The error should not include '[ssh]'
   End
 End
 

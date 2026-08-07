@@ -285,6 +285,14 @@ close_ssh_masters() {
 }
 
 node_ssh() {
+  # Leading --failure-expected marks a call for which a dead connection is the
+  # answer rather than a fault, silencing the ssh-error report below. It has to
+  # lead because everything after the command is passed through to ssh.
+  local failure_expected=false
+  if [[ ${1:-} == --failure-expected ]]; then
+    failure_expected=true
+    shift
+  fi
   local host=${1?}
   local cmd=${2?}
   shift 2
@@ -292,10 +300,38 @@ node_ssh() {
 
   # Options first, then host, then the remote command — the conventional
   # `ssh [options] host command` form, matching close_ssh_masters.
-  local_ssh "${ssh_options[@]}" "$@" "$host" "$cmd" 2> >(log_prefix "$host" log_pipe_level 3 "[stderr]")
+  if ((verbose >= 3)); then
+    local_ssh "${ssh_options[@]}" "$@" "$host" "$cmd" 2> >(log_prefix "$host" log_pipe_level 3 "[stderr]")
+    return
+  fi
+
+  # Below -vvv that logger discards everything it reads, which both throws
+  # ssh's stderr away and leaves ssh writing into a closed pipe (a stderr-heavy
+  # command comes back as SIGPIPE/141 instead of its real status). Buffer it
+  # instead and replay it when ssh itself fails: 255 is ssh's own "could not
+  # connect / connection lost" status and cannot come from the remote command,
+  # which is what makes it safe to promote to level 0. Without this a node that
+  # drops mid-command aborts the run with a bare 255 and no explanation.
+  #
+  # The redirections capture stderr without a temp file and without holding up
+  # stdout: fd 3 carries the caller's stdout into the substitution, `2>&1` sends
+  # stderr to the capture pipe, `1>&3` puts stdout back on the caller's stream
+  # (so it still streams live), and `3>&-` closes the now-unused duplicate.
+  local ssh_stderr
+  local -i ssh_status=0
+  { ssh_stderr=$(local_ssh "${ssh_options[@]}" "$@" "$host" "$cmd" 2>&1 1>&3 3>&-) || ssh_status=$?; } 3>&1
+  if ((ssh_status == 255)) && [[ "$failure_expected" != true ]]; then
+    log_prefix "$host" log_pipe_level 0 "[ssh]" <<<"$ssh_stderr"
+  fi
+  return "$ssh_status"
 }
 
 node_ssh_no_op() {
+  local -a failure_expected=()
+  if [[ ${1:-} == --failure-expected ]]; then
+    failure_expected=("$1")
+    shift
+  fi
   local node=${1?}
   local cmd=${2?}
   shift 2
@@ -303,7 +339,7 @@ node_ssh_no_op() {
     log_prefix "NO-OP" log_prefix "$node" log_warning " Not running '$cmd'"
     return 0
   fi
-  node_ssh "$node" "$cmd" "$@"
+  node_ssh ${failure_expected[@]+"${failure_expected[@]}"} "$node" "$cmd" "$@"
 }
 
 node_pvesh() {
@@ -321,7 +357,8 @@ is_node_up() {
   # `|| node_status=$?` keeps the pipeline in an OR-list so errexit doesn't abort
   # before we capture the status. Without it, a failed ssh under active errexit
   # (e.g. in the wait_all subshell) skips the down-logging below entirely.
-  node_ssh "$node" whoami "-oConnectTimeout=$timeout" | log_pipe_level 3 "[$node]" || node_status=$?
+  # A down node is the answer this function reports, not an error to surface.
+  node_ssh --failure-expected "$node" whoami "-oConnectTimeout=$timeout" | log_pipe_level 3 "[$node]" || node_status=$?
   if [[ $node_status -eq 0 ]]; then
     log_prefix "$node" log_level 2 "Node is up."
   else
@@ -664,6 +701,55 @@ node_needs_reboot() {
   [[ "$expected_kernel" != "$booted_kernel" ]]
 }
 
+node_boot_id() {
+  # The kernel regenerates boot_id on every boot, which makes it the only
+  # cheap positive evidence that a node restarted. An ssh probe is not: a node
+  # answers ssh for as long as it takes systemd to reach the point of stopping
+  # sshd, which on a PVE host is tens of seconds AFTER `reboot` returns.
+  local -a failure_expected=()
+  if [[ ${1:-} == --failure-expected ]]; then
+    failure_expected=("$1")
+    shift
+  fi
+  local node=${1?}
+  local timeout=${2:-5}
+  node_ssh ${failure_expected[@]+"${failure_expected[@]}"} "$node" 'cat /proc/sys/kernel/random/boot_id' "-oConnectTimeout=$timeout"
+}
+
+is_node_rebooted() {
+  local node=${1?}
+  local boot_id_prev=${2?}
+
+  local boot_id_current
+  # Unreachable is the normal state for most of this poll.
+  if ! boot_id_current=$(node_boot_id --failure-expected "$node"); then
+    log_prefix "$node" log_level 2 "Node is not answering ssh."
+    return 1
+  fi
+  if [[ -z "$boot_id_current" || "$boot_id_current" == "$boot_id_prev" ]]; then
+    log_prefix "$node" log_level 2 "Node answered with its pre-reboot boot ID; it has not restarted yet."
+    return 1
+  fi
+  log_prefix "$node" log_level 2 "Node restarted: boot ID $boot_id_prev -> $boot_id_current."
+}
+
+node_reboot_and_follow_dmesg() {
+  # One session both triggers the reboot and execs into the follower: a second
+  # connection opened for `dmesg -W` would have to establish against an already
+  # tearing-down node, and usually loses the shutdown dmesg it came for.
+  local node=${1?}
+
+  # Keepalive options bound the time we will wait for ssh to drop while the
+  # node is shutting down. Without these the dmesg -W follower can block until
+  # the kernel's default TCP timeout, which delays the come-back-up poll loop.
+  local -a reboot_ssh_opts=(-oConnectTimeout=10 -oServerAliveInterval=5 -oServerAliveCountMax=2)
+
+  # The connection dropping is how this call ends, so ssh's own error about it
+  # is noise rather than a fault to report.
+  node_ssh_no_op --failure-expected "$node" 'reboot; exec dmesg -W' "${reboot_ssh_opts[@]}" 2>&1 \
+    | log_pipe_level 0 "[$node]    " || true
+}
+
 node_reboot() {
   local node=${1?}
 
@@ -689,6 +775,11 @@ node_reboot() {
     return 0
   fi
 
+  # Read the boot ID before issuing the reboot; the poll below waits for it to
+  # change. Failing here aborts before anything is touched.
+  local boot_id_prev
+  boot_id_prev=$(node_boot_id "$node")
+
   log_prefix "$node" log_error "Rebooting in 5 seconds! Press CTRL-C to cancel..."
   wait_sleep 5s
   log_prefix "$node" log_status "Rebooting, logging shutdown dmesg:"
@@ -698,26 +789,14 @@ node_reboot() {
   # clock that spans the whole cycle.
   local -i reboot_started=$EPOCHSECONDS
 
-  # Keepalive options bound the time we will wait for ssh to drop while the
-  # node is shutting down. Without these the dmesg -W follower can block until
-  # the kernel's default TCP timeout, which delays the come-back-up poll loop.
-  local -a reboot_ssh_opts=(-oConnectTimeout=10 -oServerAliveInterval=5 -oServerAliveCountMax=2)
-
-  # Issue the reboot and follow the kernel log on a SINGLE ssh session: a
-  # separate `dmesg -W` connection (the previous approach) often couldn't
-  # establish because the node was already tearing down, so the shutdown dmesg
-  # was lost. Here the same session that triggers the reboot execs into the
-  # follower, which streams until the connection drops on shutdown (bounded by
-  # the ServerAlive* keepalives above).
-  node_ssh_no_op "$node" 'reboot; exec dmesg -W' "${reboot_ssh_opts[@]}" 2>&1 \
-    | log_pipe_level 0 "[$node]    " || true
+  node_reboot_and_follow_dmesg "$node"
 
   log_prefix "$node" log_status "Waiting up to ${reboot_timeout}s for node to come back up..."
   SECONDS=0
-  until is_node_up "$node"; do
+  until is_node_rebooted "$node" "$boot_id_prev"; do
     if ((SECONDS >= reboot_timeout)); then
       log_progress_end
-      log_prefix "$node" log_error "Timed out after ${reboot_timeout}s waiting for '$node' to come back up."
+      log_prefix "$node" log_error "Timed out after ${reboot_timeout}s waiting for '$node' to reboot and come back up."
       return 1
     fi
     log_progress 1s
@@ -896,8 +975,8 @@ OPTIONS
         boot. Mutually exclusive with --force-reboot.
 
     --reboot-timeout SECONDS
-        Maximum number of seconds to wait for a node to come back up after a
-        reboot before aborting the upgrade. Defaults to $reboot_timeout.
+        Maximum number of seconds to wait for a node to reboot and come back
+        up before aborting the upgrade. Defaults to $reboot_timeout.
 
     --allow-running-guests
         Disable check for running guests on the node prior to upgrade.
