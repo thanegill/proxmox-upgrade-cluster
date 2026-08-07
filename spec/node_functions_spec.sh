@@ -963,7 +963,7 @@ Describe 'node_boot_id'
     node_ssh() { echo "ssh($1, $2, $3)"; }
 
     When call node_boot_id 'pve1'
-    The output should eq 'ssh(pve1, cat /proc/sys/kernel/random/boot_id, -oConnectTimeout=5)'
+    The output should eq 'ssh(-oConnectTimeout=5, pve1, cat /proc/sys/kernel/random/boot_id)'
   End
 
   It 'passes a custom connect timeout when given one' do
@@ -971,7 +971,7 @@ Describe 'node_boot_id'
     node_ssh() { echo "ssh($1, $2, $3)"; }
 
     When call node_boot_id 'pve1' '20'
-    The output should eq 'ssh(pve1, cat /proc/sys/kernel/random/boot_id, -oConnectTimeout=20)'
+    The output should eq 'ssh(-oConnectTimeout=20, pve1, cat /proc/sys/kernel/random/boot_id)'
   End
 
   It 'forwards --failure-expected to node_ssh' do
@@ -979,7 +979,7 @@ Describe 'node_boot_id'
     node_ssh() { echo "ssh($*)"; }
 
     When call node_boot_id --failure-expected 'pve1'
-    The output should eq 'ssh(--failure-expected pve1 cat /proc/sys/kernel/random/boot_id -oConnectTimeout=5)'
+    The output should eq 'ssh(--failure-expected -oConnectTimeout=5 pve1 cat /proc/sys/kernel/random/boot_id)'
   End
 
   It 'omits the flag when not asked for it' do

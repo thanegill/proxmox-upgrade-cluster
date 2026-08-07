@@ -227,10 +227,11 @@ Describe 'node_reboot'
     verbose=1
     # node_ssh's stdout gets piped through log_pipe_level → stderr.
     node_ssh() {
-      local flags="$1 $2"; shift 2
+      local opts=()
+      while [[ $1 == -* ]]; do opts+=("$1"); shift; done
       local node=$1; shift
       local cmd=$1; shift
-      echo "ssh($flags, $node, $cmd, $*)"
+      echo "ssh(${opts[*]}, $node, $cmd)"
     }
 
     When call node_reboot 'pve1'
@@ -238,7 +239,7 @@ Describe 'node_reboot'
     # One combined invocation, not two — avoids the second-connection race that
     # lost the shutdown dmesg. --failure-expected keeps the shutdown disconnect
     # from being reported as an ssh fault.
-    The error should include 'ssh(--no-op --failure-expected, pve1, reboot; exec dmesg -W, -oConnectTimeout=10 -oServerAliveInterval=5 -oServerAliveCountMax=2)'
+    The error should include 'ssh(--no-op --failure-expected -oConnectTimeout=10 -oServerAliveInterval=5 -oServerAliveCountMax=2, pve1, reboot; exec dmesg -W)'
   End
 
   It 'aborts with a timeout error when the node does not come back up' do

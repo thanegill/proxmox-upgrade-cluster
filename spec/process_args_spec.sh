@@ -473,12 +473,33 @@ Describe 'node_ssh passes ssh_options as distinct argv elements'
     The output should include '[whoami]'
   End
 
-  It 'forwards extra ssh args from caller without word-splitting' do
+  It 'forwards per-call ssh options without word-splitting' do
     local_ssh() { printf '[%s]\n' "$@"; }
     ssh_options=()
-    When call node_ssh 'pve1' 'whoami' '-oConnectTimeout=5'
+    When call node_ssh '-oConnectTimeout=5' 'pve1' 'whoami'
     The output should include '[pve1]'
     The output should include '[-oConnectTimeout=5]'
     The output should include '[whoami]'
+  End
+
+  It 'places per-call options after the global ssh_options' do
+    # ssh takes the first value it sees for an option, so the global set still
+    # wins a conflict. Nothing relies on overriding it today; this pins the
+    # order so a future per-call override is a deliberate change, not a
+    # surprise.
+    local_ssh() { printf '%s\n' "$*"; }
+    ssh_options=(-o 'ControlPersist=60')
+    When call node_ssh '-oConnectTimeout=5' 'pve1' 'whoami'
+    The output should eq '-o ControlPersist=60 -oConnectTimeout=5 pve1 whoami'
+  End
+
+  It 'does not treat a remote command starting with a dash as an option' do
+    # The whole reason options lead: the command is the last argument and can
+    # look like anything. Parsing stops at the host, so the command is safe.
+    local_ssh() { printf '[%s]\n' "$@"; }
+    ssh_options=()
+    When call node_ssh 'pve1' '-oNotAnOption --no-op'
+    The output should eq '[pve1]
+[-oNotAnOption --no-op]'
   End
 End

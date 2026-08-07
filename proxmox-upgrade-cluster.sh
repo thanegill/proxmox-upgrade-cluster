@@ -290,14 +290,18 @@ node_ssh() {
   #   --failure-expected  a dead connection is this call's answer rather than a
   #                       fault, so keep ssh's own error out of the log
   #   --no-op             honour --dry-run by logging the command and skipping it
+  #   -o<name>=<value>    an ssh option for this call, on top of $ssh_options
   #
-  # They lead because everything from the host onwards is handed to ssh.
+  # They lead because the remote command is the final argument and may itself
+  # look like an option, which would make a trailing form ambiguous.
   local failure_expected=false
   local no_op=false
+  local -a call_ssh_options=()
   while (($#)); do
     case $1 in
       --failure-expected) failure_expected=true ;;
       --no-op) no_op=true ;;
+      -o*) call_ssh_options+=("$1") ;;
       *) break ;;
     esac
     shift
@@ -305,7 +309,6 @@ node_ssh() {
 
   local host=${1?}
   local cmd=${2?}
-  shift 2
 
   if [[ "$no_op" == true && "$dry_run" == true ]]; then
     log_prefix "NO-OP" log_prefix "$host" log_warning " Not running '$cmd'"
@@ -317,7 +320,7 @@ node_ssh() {
   # Options first, then host, then the remote command — the conventional
   # `ssh [options] host command` form, matching close_ssh_masters.
   if ((verbose >= 3)); then
-    local_ssh "${ssh_options[@]}" "$@" "$host" "$cmd" 2> >(log_prefix "$host" log_pipe_level 3 "[stderr]")
+    local_ssh "${ssh_options[@]}" "${call_ssh_options[@]}" "$host" "$cmd" 2> >(log_prefix "$host" log_pipe_level 3 "[stderr]")
     return
   fi
 
@@ -335,7 +338,7 @@ node_ssh() {
   # (so it still streams live), and `3>&-` closes the now-unused duplicate.
   local ssh_stderr
   local -i ssh_status=0
-  { ssh_stderr=$(local_ssh "${ssh_options[@]}" "$@" "$host" "$cmd" 2>&1 1>&3 3>&-) || ssh_status=$?; } 3>&1
+  { ssh_stderr=$(local_ssh "${ssh_options[@]}" "${call_ssh_options[@]}" "$host" "$cmd" 2>&1 1>&3 3>&-) || ssh_status=$?; } 3>&1
   if ((ssh_status == 255)) && [[ "$failure_expected" != true ]]; then
     log_prefix "$host" log_pipe_level 0 "[ssh]" <<<"$ssh_stderr"
   fi
@@ -358,7 +361,7 @@ is_node_up() {
   # before we capture the status. Without it, a failed ssh under active errexit
   # (e.g. in the wait_all subshell) skips the down-logging below entirely.
   # A down node is the answer this function reports, not an error to surface.
-  node_ssh --failure-expected "$node" whoami "-oConnectTimeout=$timeout" | log_pipe_level 3 "[$node]" || node_status=$?
+  node_ssh --failure-expected "-oConnectTimeout=$timeout" "$node" whoami | log_pipe_level 3 "[$node]" || node_status=$?
   if [[ $node_status -eq 0 ]]; then
     log_prefix "$node" log_level 2 "Node is up."
   else
@@ -706,14 +709,16 @@ node_boot_id() {
   # cheap positive evidence that a node restarted. An ssh probe is not: a node
   # answers ssh for as long as it takes systemd to reach the point of stopping
   # sshd, which on a PVE host is tens of seconds AFTER `reboot` returns.
-  local -a failure_expected=()
-  if [[ ${1:-} == --failure-expected ]]; then
-    failure_expected=("$1")
+  # Leading options are handed straight to node_ssh, which is where the poll
+  # opts out of the ssh-error report with --failure-expected.
+  local -a ssh_prefix_options=()
+  while [[ ${1:-} == -* ]]; do
+    ssh_prefix_options+=("$1")
     shift
-  fi
+  done
   local node=${1?}
   local timeout=${2:-5}
-  node_ssh ${failure_expected[@]+"${failure_expected[@]}"} "$node" 'cat /proc/sys/kernel/random/boot_id' "-oConnectTimeout=$timeout"
+  node_ssh "${ssh_prefix_options[@]}" "-oConnectTimeout=$timeout" "$node" 'cat /proc/sys/kernel/random/boot_id'
 }
 
 is_node_rebooted() {
@@ -746,7 +751,7 @@ node_reboot_and_follow_dmesg() {
 
   # The connection dropping is how this call ends, so ssh's own error about it
   # is noise rather than a fault to report.
-  node_ssh --no-op --failure-expected "$node" 'reboot; exec dmesg -W' "${reboot_ssh_opts[@]}" 2>&1 \
+  node_ssh --no-op --failure-expected "${reboot_ssh_opts[@]}" "$node" 'reboot; exec dmesg -W' 2>&1 \
     | log_pipe_level 0 "[$node]    " || true
 }
 
