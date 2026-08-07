@@ -285,17 +285,33 @@ close_ssh_masters() {
 }
 
 node_ssh() {
-  # Leading --failure-expected marks a call for which a dead connection is the
-  # answer rather than a fault, silencing the ssh-error report below. It has to
-  # lead because everything after the command is passed through to ssh.
+  # Prefix options, in any order, ahead of the host and command:
+  #
+  #   --failure-expected  a dead connection is this call's answer rather than a
+  #                       fault, so keep ssh's own error out of the log
+  #   --no-op             honour --dry-run by logging the command and skipping it
+  #
+  # They lead because everything from the host onwards is handed to ssh.
   local failure_expected=false
-  if [[ ${1:-} == --failure-expected ]]; then
-    failure_expected=true
+  local no_op=false
+  while (($#)); do
+    case $1 in
+      --failure-expected) failure_expected=true ;;
+      --no-op) no_op=true ;;
+      *) break ;;
+    esac
     shift
-  fi
+  done
+
   local host=${1?}
   local cmd=${2?}
   shift 2
+
+  if [[ "$no_op" == true && "$dry_run" == true ]]; then
+    log_prefix "NO-OP" log_prefix "$host" log_warning " Not running '$cmd'"
+    return 0
+  fi
+
   log_prefix "$host" log_level 2 "Running command '$cmd'"
 
   # Options first, then host, then the remote command — the conventional
@@ -324,22 +340,6 @@ node_ssh() {
     log_prefix "$host" log_pipe_level 0 "[ssh]" <<<"$ssh_stderr"
   fi
   return "$ssh_status"
-}
-
-node_ssh_no_op() {
-  local -a failure_expected=()
-  if [[ ${1:-} == --failure-expected ]]; then
-    failure_expected=("$1")
-    shift
-  fi
-  local node=${1?}
-  local cmd=${2?}
-  shift 2
-  if [[ "$dry_run" == true ]]; then
-    log_prefix "NO-OP" log_prefix "$node" log_warning " Not running '$cmd'"
-    return 0
-  fi
-  node_ssh ${failure_expected[@]+"${failure_expected[@]}"} "$node" "$cmd" "$@"
 }
 
 node_pvesh() {
@@ -643,7 +643,7 @@ node_set_maintenance() {
   fi
 
   # shellcheck disable=SC2016 # $(hostname) is supposed to run in remote host.
-  node_ssh_no_op "$node" "ha-manager crm-command node-maintenance $action "'$(hostname)' | log_pipe_level 1 "[$node]    "
+  node_ssh --no-op "$node" "ha-manager crm-command node-maintenance $action "'$(hostname)' | log_pipe_level 1 "[$node]    "
 
   # Don't wait for the mode transition when dry-run.
   if [[ "$dry_run" == true ]]; then
@@ -662,7 +662,7 @@ node_upgrade() {
     log_prefix "$node" log_status "Skipping apt dist-upgrade (--reboot-only)."
     return 0
   fi
-  node_ssh_no_op "$node" 'DEBIAN_FRONTEND=noninteractive apt-get dist-upgrade -y' | log_pipe_level 0 "[$node][apt]"
+  node_ssh --no-op "$node" 'DEBIAN_FRONTEND=noninteractive apt-get dist-upgrade -y' | log_pipe_level 0 "[$node][apt]"
 }
 
 node_needs_reboot() {
@@ -746,7 +746,7 @@ node_reboot_and_follow_dmesg() {
 
   # The connection dropping is how this call ends, so ssh's own error about it
   # is noise rather than a fault to report.
-  node_ssh_no_op --failure-expected "$node" 'reboot; exec dmesg -W' "${reboot_ssh_opts[@]}" 2>&1 \
+  node_ssh --no-op --failure-expected "$node" 'reboot; exec dmesg -W' "${reboot_ssh_opts[@]}" 2>&1 \
     | log_pipe_level 0 "[$node]    " || true
 }
 
@@ -815,12 +815,12 @@ node_post_upgrade() {
 
   if [[ ${#pkgs_reinstall[@]} -gt 0 ]]; then
     log_prefix "$node" log_success "Force reinstalling '${pkgs_reinstall[*]}'..."
-    node_ssh_no_op "$node" "DEBIAN_FRONTEND=noninteractive apt-get reinstall ${pkgs_reinstall[*]}" | log_pipe_level 0 "[$node][apt]"
+    node_ssh --no-op "$node" "DEBIAN_FRONTEND=noninteractive apt-get reinstall ${pkgs_reinstall[*]}" | log_pipe_level 0 "[$node][apt]"
   else
     log_prefix "$node" log_level 0 "No packages to force reinstall."
   fi
   log_prefix "$node" log_success "Removing old packages..."
-  node_ssh_no_op "$node" "DEBIAN_FRONTEND=noninteractive apt-get autoremove -y && apt-get autoclean -y" | log_pipe_level 0 "[$node][apt]"
+  node_ssh --no-op "$node" "DEBIAN_FRONTEND=noninteractive apt-get autoremove -y && apt-get autoclean -y" | log_pipe_level 0 "[$node][apt]"
 }
 
 warn_if_left_in_maintenance() {
